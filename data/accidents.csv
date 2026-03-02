@@ -1,0 +1,4 @@
+id,name,x,y,num_victims,status,need_hospital,need_police,need_firestation,need_evac
+417,Accident_12,858.3394029850746,299.7454805970152,12,REPORTED,True,False,False,True
+418,Accident_1,933.2623880597015,686.8475701492539,1,REPORTED,False,True,False,False
+419,Accident 3,220.89785447761187,350.3151352611942,1,REPORTED,False,True,False,False
