@@ -9,6 +9,7 @@ from .terminal_panel import TerminalPanel
 from src.components.core.data_manager import DataManager 
 from src.components.core.map_utils import get_colors, get_category_order
 from src.components.core.filter_logic import FilterLogic
+from src.components.core.inspect_node import NodeInspector
 
 class MainWorkspace(ctk.CTkFrame):
     def __init__(self, master, **kwargs):
@@ -65,12 +66,24 @@ class MainWorkspace(ctk.CTkFrame):
             group = self.all_data[self.all_data['category'] == cat_lower]
             
             if not group.empty:
+                # CRITICAL: picker=True allows the NodeInspector to "detect" the click
                 self.plots[cat_lower] = self.ax.scatter(
                     group['x'], group['y'], 
                     c=color_map.get(cat_lower, 'white'), 
-                    s=80, edgecolors='white', linewidth=0.5, zorder=5
+                    s=80, edgecolors='white', linewidth=0.5, zorder=5,
+                    picker=True, 
+                    pickradius=5
                 )
         self.canvas.draw()
+
+        # Initialize the inspector AFTER plots are created
+        self.inspector = NodeInspector(
+            self.fig, 
+            self.ax, 
+            self.plots, 
+            self.all_data, 
+            self.master_registry
+        )
 
     def log_analysis(self, message):
         self.terminal.log(message)
