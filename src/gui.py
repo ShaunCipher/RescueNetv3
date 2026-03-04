@@ -3,13 +3,17 @@ import tkinter as tk
 from src.components.top_nav import TopNavigation
 from src.components.left_panel import LeftPanel
 from src.components.right_panel import RightPanel
+from src.components.main_workspace import MainWorkspace 
+from src.theme import Theme  # Import our central theme
 
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        # --- 1. DEVICE ADAPTIVE FULL SCREEN ---
+        # --- 1. WINDOW SETUP & PROTOCOL ---
         self.title("RescueNet | DRRM Parian")
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
         self.geometry(f"{screen_width}x{screen_height}+0+0")
@@ -29,36 +33,46 @@ class App(ctk.CTk):
 
         # --- 4. DRAGGABLE CONTAINER (PanedWindow) ---
         self.paned_window = tk.PanedWindow(
-            self, orient=tk.HORIZONTAL, bg="#1a1a1a", sashwidth=4, sashpad=0, borderwidth=0
+            self, 
+            orient=tk.HORIZONTAL, 
+            bg=Theme.BG_DARK,  # Use Theme
+            sashwidth=4, 
+            sashpad=0, 
+            borderwidth=0
         )
         self.paned_window.grid(row=1, column=0, sticky="nsew", padx=2, pady=2)
 
         # --- 5. INITIALIZE COMPONENTS ---
-        # Note: Parents are the paned_window
         self.left_panel = LeftPanel(self.paned_window, toggle_cmd=self.toggle_left)
-        self.center_frame = ctk.CTkFrame(self.paned_window, corner_radius=0, fg_color="#212121")
+        self.center_view = MainWorkspace(self.paned_window)
         self.right_panel = RightPanel(self.paned_window, toggle_cmd=self.toggle_right)
 
-        self.main_label = ctk.CTkLabel(self.center_frame, text="Main Workspace Area", font=("Arial", 20))
-        self.main_label.place(relx=0.5, rely=0.5, anchor="center")
+        # Log link confirmation
+        try:
+            self.center_view.log_analysis("GUI System successfully linked to modular Terminal.")
+        except Exception:
+            pass 
 
         # --- 6. ADD TO PANED WINDOW ---
         self.paned_window.add(self.left_panel, width=250, stretch="never")
-        self.paned_window.add(self.center_frame, stretch="always")
+        self.paned_window.add(self.center_view, stretch="always")
         self.paned_window.add(self.right_panel, width=250, stretch="never")
 
         # --- 7. DISCRETE RE-OPEN BUTTONS (Floating) ---
         self.btn_reopen_left = ctk.CTkButton(
-            self, text=">", width=15, height=60, fg_color="#2b2b2b", 
-            hover_color="#3d3d3d", command=self.toggle_left
+            self, text=">", width=15, height=60, 
+            fg_color=Theme.BG_DARKER,        # Use Theme
+            hover_color=Theme.HOVER_GRAY,    # Use Theme
+            command=self.toggle_left
         )
         
         self.btn_reopen_right = ctk.CTkButton(
-            self, text="<", width=15, height=60, fg_color="#2b2b2b", 
-            hover_color="#3d3d3d", command=self.toggle_right
+            self, text="<", width=15, height=60, 
+            fg_color=Theme.BG_DARKER,        # Use Theme
+            hover_color=Theme.HOVER_GRAY,    # Use Theme
+            command=self.toggle_right
         )
 
-        # Visibility State
         self.left_visible = True
         self.right_visible = True
 
@@ -66,18 +80,16 @@ class App(ctk.CTk):
 
     def _refresh_panes(self):
         """Helper to re-add visible panes in the correct order"""
-        # Remove everything currently in the paned window
-        for pane in [self.left_panel, self.center_frame, self.right_panel]:
+        for pane in [self.left_panel, self.center_view, self.right_panel]:
             try:
                 self.paned_window.forget(pane)
             except:
                 pass
         
-        # Add them back based on current visibility state
         if self.left_visible:
             self.paned_window.add(self.left_panel, width=250, stretch="never")
         
-        self.paned_window.add(self.center_frame, stretch="always")
+        self.paned_window.add(self.center_view, stretch="always")
         
         if self.right_visible:
             self.paned_window.add(self.right_panel, width=250, stretch="never")
@@ -101,3 +113,10 @@ class App(ctk.CTk):
             self.btn_reopen_right.place_forget()
             self.right_visible = True
             self._refresh_panes()
+
+    def on_closing(self):
+        """Shutdown sequence"""
+        import matplotlib.pyplot as plt
+        plt.close('all')
+        self.quit()
+        self.destroy()
