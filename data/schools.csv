@@ -1,0 +1,10 @@
+﻿id,name,category,capacity,occupants,operating_hours,status,is_open
+366,School_1,School,150,0,06:00-21:00,Available,TRUE
+369,School_2,School,200,0,06:00-21:00,Available,TRUE
+377,School_3,School,250,0,06:00-21:00,Available,TRUE
+381,School_4,School,300,0,06:00-21:00,Available,TRUE
+385,School_5,School,150,0,06:00-21:00,Available,TRUE
+390,School_6,School,175,0,06:00-21:00,Available,TRUE
+395,School_7,School,300,0,06:00-21:00,Available,TRUE
+401,School_8,School,400,0,06:00-21:00,Available,TRUE
+406,School_9,School,500,0,06:00-21:00,Available,TRUE

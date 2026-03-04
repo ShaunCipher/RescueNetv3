@@ -1,11 +1,4 @@
-id,name,category,number_of_staff,staff_present,status,is_open
-370,Barangay_Hall_1,DRRM,10,8,Available,TRUE
-367,Firestation_1,Firestation,30,30,Available,TRUE
-371,Firestation_2,Firestation,25,22,Available,TRUE
-376,Firestation_3,Firestation,20,18,Available,TRUE
-391,Firestation_4,Firestation,35,34,Available,TRUE
-414,Firestation_5,Firestation,40,40,Available,TRUE
-415,Firestation_6,Firestation,30,30,Available,TRUE
+﻿id,name,category,number_of_staff,staff_present,status,is_open
 372,Policestation_1,Policestation,50,45,Available,TRUE
 375,Policestation_2,Policestation,25,22,Available,TRUE
 380,Policestation_3,Policestation,30,30,Available,TRUE
