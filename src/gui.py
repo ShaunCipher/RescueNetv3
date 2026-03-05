@@ -5,6 +5,7 @@ from src.components.top_nav import TopNavigation
 from src.components.left_panel import LeftPanel
 from src.components.right_panel import RightPanel
 from src.components.main_workspace import MainWorkspace 
+from src.components.core.command_center import CommandCenter 
 from src.theme import Theme
 
 class App(ctk.CTk):
@@ -14,11 +15,8 @@ class App(ctk.CTk):
         # --- 1. WINDOW SETUP & PROTOCOL ---
         self.title("RescueNet | DRRM Parian")
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
-
-        # Set appearance to system theme (usually dark)
         ctk.set_appearance_mode("dark")
 
-        # Get screen dimensions and set geometry
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
         self.geometry(f"{screen_width}x{screen_height}+0+0")
@@ -29,15 +27,10 @@ class App(ctk.CTk):
             pass
 
         # --- 2. LAYOUT CONFIGURATION ---
-        # Column 0 takes full width; Row 1 takes all vertical space below Nav
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
 
-        # --- 3. TOP NAVIGATION ---
-        self.top_nav = TopNavigation(self, self.toggle_left, self.toggle_right)
-        self.top_nav.grid(row=0, column=0, sticky="new")
-
-        # --- 4. DRAGGABLE CONTAINER (PanedWindow) ---
+        # --- 3. DRAGGABLE CONTAINER (PanedWindow) ---
         self.paned_window = tk.PanedWindow(
             self, 
             orient=tk.HORIZONTAL, 
@@ -48,77 +41,81 @@ class App(ctk.CTk):
         )
         self.paned_window.grid(row=1, column=0, sticky="nsew", padx=2, pady=2)
 
-        # --- 5. INITIALIZE COMPONENTS (Order Matters!) ---
+        # --- 4. INITIALIZE COMPONENTS (Strict Order) ---
         
-        # Create Workspace FIRST so we can pass it to the panels for linking
+        # A. Create Workspace FIRST (to load master_registry, fig, and ax)
         self.center_view = MainWorkspace(self.paned_window)
 
-        # Create Left Panel and pass the workspace reference for Filter Logic
+        # B. Create the Command Center "Brain" 
+        # FIXED: Using .master_registry to match your MainWorkspace variable name
+        self.cmd_center = CommandCenter(
+            master_registry=self.center_view.master_registry, 
+            fig=self.center_view.fig, 
+            ax=self.center_view.ax
+        )
+
+        # C. Create Top Nav and PASS the Command Center
+        self.top_nav = TopNavigation(
+            self, 
+            self.toggle_left, 
+            self.toggle_right,
+            command_center=self.cmd_center
+        )
+        self.top_nav.grid(row=0, column=0, sticky="new")
+
+        # D. Initialize Side Panels
         self.left_panel = LeftPanel(
             self.paned_window, 
             toggle_cmd=self.toggle_left,
             workspace=self.center_view
         )
         
-        # Build the Facility Checkboxes now that workspace (and its plots) exists
         if hasattr(self.left_panel, "setup_filters"):
             self.left_panel.setup_filters()
 
         self.right_panel = RightPanel(self.paned_window, toggle_cmd=self.toggle_right)
 
-        # Log link confirmation to the modular terminal
+        # --- 5. LOG SYSTEM STATUS ---
         try:
-            self.center_view.log_analysis("GUI System successfully linked to modular Terminal.")
-            self.center_view.log_analysis("Filter Logic initialized in Left Panel.")
+            self.center_view.log_analysis("GUI Initialized: Command Center Linked.")
+            self.center_view.log_analysis("Ready for Emergency Response Operations.")
         except Exception:
             pass 
 
         # --- 6. ADD TO PANED WINDOW ---
-        # Add panes in order: Left -> Center -> Right
         self.paned_window.add(self.left_panel, width=250, stretch="never")
         self.paned_window.add(self.center_view, stretch="always")
         self.paned_window.add(self.right_panel, width=250, stretch="never")
 
         # --- 7. FLOATING RE-OPEN BUTTONS ---
-        # These appear only when a panel is collapsed
         self.btn_reopen_left = ctk.CTkButton(
             self, text=">", width=15, height=60, 
-            fg_color=Theme.BG_DARKER,
-            hover_color=Theme.HOVER_GRAY,
+            fg_color=Theme.BG_DARKER, hover_color=Theme.HOVER_GRAY,
             command=self.toggle_left
         )
         
         self.btn_reopen_right = ctk.CTkButton(
             self, text="<", width=15, height=60, 
-            fg_color=Theme.BG_DARKER,
-            hover_color=Theme.HOVER_GRAY,
+            fg_color=Theme.BG_DARKER, hover_color=Theme.HOVER_GRAY,
             command=self.toggle_right
         )
 
-        # Track visibility states for toggle logic
         self.left_visible = True
         self.right_visible = True
 
     # --- TOGGLE LOGIC ---
-
     def _refresh_panes(self):
-        """Helper to re-add visible panes in the correct order to the PanedWindow"""
         for pane in [self.left_panel, self.center_view, self.right_panel]:
-            try:
-                self.paned_window.forget(pane)
-            except:
-                pass
+            try: self.paned_window.forget(pane)
+            except: pass
         
         if self.left_visible:
             self.paned_window.add(self.left_panel, width=250, stretch="never")
-        
         self.paned_window.add(self.center_view, stretch="always")
-        
         if self.right_visible:
             self.paned_window.add(self.right_panel, width=250, stretch="never")
 
     def toggle_left(self):
-        """Collapses or expands the Left Panel"""
         if self.left_visible:
             self.paned_window.forget(self.left_panel)
             self.btn_reopen_left.place(relx=0.0, rely=0.5, anchor="w")
@@ -129,7 +126,6 @@ class App(ctk.CTk):
             self._refresh_panes()
 
     def toggle_right(self):
-        """Collapses or expands the Right Panel"""
         if self.right_visible:
             self.paned_window.forget(self.right_panel)
             self.btn_reopen_right.place(relx=1.0, rely=0.5, anchor="e")
@@ -140,7 +136,6 @@ class App(ctk.CTk):
             self._refresh_panes()
 
     def on_closing(self):
-        """Proper shutdown sequence to prevent memory leaks from Matplotlib"""
         plt.close('all')
         self.quit()
         self.destroy()

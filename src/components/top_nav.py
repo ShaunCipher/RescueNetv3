@@ -3,48 +3,46 @@ import tkinter as tk
 from utils.clock import get_current_time_string
 
 class TopNavigation(ctk.CTkFrame):
-    def __init__(self, master, toggle_left_cmd, toggle_right_cmd, **kwargs):
+    def __init__(self, master, toggle_left_cmd, toggle_right_cmd, command_center=None, **kwargs):
         super().__init__(master, height=50, corner_radius=0, **kwargs)
         
+        self.cmd_center = command_center
         self.clock_format = ctk.StringVar(value="24h | MM/DD/YYYY")
 
-        # --- 1. LEFT SIDE: NAVIGATION LABEL ---
+        # --- LEFT SIDE ---
         self.nav_label = ctk.CTkLabel(self, text="PROJECT NAVIGATOR", font=("Arial", 12, "bold"), text_color="gray")
         self.nav_label.pack(side="left", padx=20)
 
-        # --- 2. CENTER: MAIN TITLE ---
-        # Using .place() to ignore side-packing and hit the absolute center
-        self.main_title = ctk.CTkLabel(
-            self, 
-            text="DRRM Parian Calamba | RescueNet", 
-            font=("Arial", 16, "bold")
-        )
+        # --- CENTER ---
+        self.main_title = ctk.CTkLabel(self, text="DRRM Parian Calamba | RescueNet", font=("Arial", 16, "bold"))
         self.main_title.place(relx=0.5, rely=0.5, anchor="center")
 
-        # --- 3. RIGHT SIDE: CLOCK & DISCRETE BUTTON ---
-        # Settings Button (Packed first to be furthest right)
-        self.settings_btn = ctk.CTkButton(
-            self, 
-            text="⋮", 
-            width=20, 
-            height=25, 
-            fg_color="transparent", 
-            text_color="gray",
-            hover_color="#333333",
-            command=self.show_menu
-        )
+        # --- RIGHT SIDE ---
+        self.settings_btn = ctk.CTkButton(self, text="⋮", width=20, height=25, fg_color="transparent", 
+                                         text_color="gray", hover_color="#333333", command=self.show_menu)
         self.settings_btn.pack(side="right", padx=(5, 20))
 
-        # Time Label
         self.clock_label = ctk.CTkLabel(self, text="", font=("Consolas", 13))
         self.clock_label.pack(side="right", padx=5)
+
+        # --- COMMAND CENTER: DASHBOARD ONLY ---
+        if self.cmd_center:
+            self.dash_btn = ctk.CTkButton(
+                self, 
+                text="📊 DASHBOARD", 
+                width=120, 
+                height=32,
+                font=("Arial", 11, "bold"),
+                fg_color="#2980b9", 
+                hover_color="#3498db",
+                command=self.cmd_center.open_dashboard
+            )
+            self.dash_btn.pack(side="right", padx=10)
 
         # --- POPUP MENU ---
         self.menu = tk.Menu(self, tearoff=0, bg="#2b2b2b", fg="white", borderwidth=0)
         self.menu.add_command(label="24h | MM/DD/YYYY", command=lambda: self.set_format("24h | MM/DD/YYYY"))
-        self.menu.add_command(label="24h | Month DD, YY", command=lambda: self.set_format("24h | Month DD, YY"))
         self.menu.add_command(label="12h | MM/DD/YYYY", command=lambda: self.set_format("12h | MM/DD/YYYY"))
-        self.menu.add_command(label="12h | Month DD, YY", command=lambda: self.set_format("12h | Month DD, YY"))
 
         self.update_clock()
 
