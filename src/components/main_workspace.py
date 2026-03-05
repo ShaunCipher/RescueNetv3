@@ -10,6 +10,7 @@ from src.components.core.data_manager import DataManager
 from src.components.core.map_utils import get_colors, get_category_order
 from src.components.core.filter_logic import FilterLogic
 from src.components.core.inspect_node import NodeInspector
+from src.components.core.routing_manager import RoutingManager
 
 class MainWorkspace(ctk.CTkFrame):
     def __init__(self, master, **kwargs):
@@ -17,10 +18,11 @@ class MainWorkspace(ctk.CTkFrame):
 
         # 1. Load Data
         self.data_engine = DataManager()
+        # Ensure your load_and_clean_data now also loads edges_df
         self.nodes, self.all_data, self.master_registry = self.data_engine.load_and_clean_data()
         self.plots = {} 
 
-        # 2. Layout
+        # 2. Layout (Vertical Paned Window for Map + Terminal)
         self.v_paned = tk.PanedWindow(self, orient=tk.VERTICAL, bg="#1a1a1a", sashwidth=4, borderwidth=0)
         self.v_paned.pack(fill="both", expand=True)
 
@@ -34,11 +36,32 @@ class MainWorkspace(ctk.CTkFrame):
         self.setup_map()
         self.plot_facilities()
 
-        # 4. Initialize Filter Engine
+        # 4. Initialize Engines (Order is important)
+        
+        # Filter Logic for the Left Panel checkboxes
         self.filter_engine = FilterLogic(
             categories=get_category_order(),
             plots=self.plots,
             canvas=self.canvas
+        )
+
+        # Routing Engine for Dijkstra pathfinding
+        # We pass the edges_df directly from the data engine
+        self.routing_engine = RoutingManager(
+            self.fig, 
+            self.ax, 
+            self.nodes, 
+            self.data_engine.edges_df 
+        )
+
+        # Node Inspector for clicking nodes and seeing info
+        self.inspector = NodeInspector(
+            self.fig, 
+            self.ax, 
+            self.plots, 
+            self.all_data, 
+            self.master_registry,
+            workspace=self # Pass workspace reference so inspector can call routing
         )
 
     def setup_map(self):
@@ -66,7 +89,7 @@ class MainWorkspace(ctk.CTkFrame):
             group = self.all_data[self.all_data['category'] == cat_lower]
             
             if not group.empty:
-                # CRITICAL: picker=True allows the NodeInspector to "detect" the click
+                # picker=True allows the NodeInspector to detect the click
                 self.plots[cat_lower] = self.ax.scatter(
                     group['x'], group['y'], 
                     c=color_map.get(cat_lower, 'white'), 
@@ -76,14 +99,6 @@ class MainWorkspace(ctk.CTkFrame):
                 )
         self.canvas.draw()
 
-        # Initialize the inspector AFTER plots are created
-        self.inspector = NodeInspector(
-            self.fig, 
-            self.ax, 
-            self.plots, 
-            self.all_data, 
-            self.master_registry
-        )
-
     def log_analysis(self, message):
+        """Allows other components to print to the bottom terminal"""
         self.terminal.log(message)

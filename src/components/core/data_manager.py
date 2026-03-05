@@ -2,39 +2,54 @@ import pandas as pd
 import os
 
 class DataManager:
-    def __init__(self, data_dir='data'):
-        self.data_dir = data_dir
-        # These keys MUST match the keys in map_utils.get_colors()
-        self.files = {
-            'hospital': 'hospitals.csv',
-            'policestation': 'policestations.csv',
-            'firestation': 'firestations.csv',
-            'church': 'churches.csv',
-            'school': 'schools.csv',
-            'drrm': 'drrm.csv'
-        }
+    def __init__(self):
+        # Determine the base directory (adjusting for src/components/core structure)
+        self.base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        self.data_dir = os.path.join(self.base_dir, 'data')
+        
+        self.nodes_df = pd.DataFrame()
+        self.edges_df = pd.DataFrame()
+        self.all_data = pd.DataFrame()
+        self.master_registry = {}
 
     def load_and_clean_data(self):
-        nodes_path = os.path.join(self.data_dir, 'nodes.csv')
-        nodes = pd.read_csv(nodes_path)
-        nodes.columns = nodes.columns.str.strip().str.lower()
+        # 1. Load Core Infrastructure
+        self.nodes_df = pd.read_csv(os.path.join(self.data_dir, 'nodes.csv'))
+        self.edges_df = pd.read_csv(os.path.join(self.data_dir, 'edges.csv'))
         
-        master_registry = {}
-        all_facility_dfs = []
+        # Standardize node/edge headers
+        self.nodes_df.columns = self.nodes_df.columns.str.strip()
+        self.edges_df.columns = self.edges_df.columns.str.strip()
 
-        for category, filename in self.files.items():
+        # 2. Define Modular Facility Files
+        facility_files = [
+            'hospitals.csv', 'firestations.csv', 'policestations.csv', 
+            'drrm.csv', 'schools.csv', 'churches.csv', 'accidents.csv'
+        ]
+
+        frames = []
+        for filename in facility_files:
             path = os.path.join(self.data_dir, filename)
             if os.path.exists(path):
                 df = pd.read_csv(path)
-                df.columns = df.columns.str.strip().str.lower()
+                # Clean headers (fixes "occupants " vs "occupants")
+                df.columns = df.columns.str.strip()
                 
-                # Merge with nodes to get x, y
-                df_coords = pd.merge(df, nodes[['id', 'x', 'y']], on='id', how='inner')
-                df_coords['category'] = category
-                all_facility_dfs.append(df_coords)
+                # Merge with nodes_df to get X, Y coordinates based on ID
+                df = df.merge(self.nodes_df[['id', 'x', 'y']], on='id', how='left')
                 
-                for _, row in df_coords.iterrows():
-                    master_registry[int(row['id'])] = row.to_dict()
+                frames.append(df)
+                
+                # Store in registry for the Inspector to use
+                for _, row in df.iterrows():
+                    self.master_registry[int(row['id'])] = row.to_dict()
 
-        all_data = pd.concat(all_facility_dfs, ignore_index=True) if all_facility_dfs else pd.DataFrame()
-        return nodes, all_data, master_registry
+        # 3. Create the master dataframe for plotting/filtering
+        if frames:
+            self.all_data = pd.concat(frames, ignore_index=True)
+            # Ensure category is lowercase for logic consistency
+            self.all_data['category'] = self.all_data['category'].str.lower()
+        else:
+            self.all_data = pd.DataFrame(columns=['id', 'name', 'category', 'x', 'y'])
+
+        return self.nodes_df, self.all_data, self.master_registry
