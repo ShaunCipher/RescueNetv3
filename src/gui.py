@@ -6,6 +6,7 @@ from src.components.left_panel import LeftPanel
 from src.components.right_panel import RightPanel
 from src.components.main_workspace import MainWorkspace 
 from src.components.core.command_center import CommandCenter 
+from src.components.core.status_manager import StatusManager # Added Import
 from src.theme import Theme
 
 class App(ctk.CTk):
@@ -43,18 +44,25 @@ class App(ctk.CTk):
 
         # --- 4. INITIALIZE COMPONENTS (Strict Order) ---
         
-        # A. Create Workspace FIRST (to load master_registry, fig, and ax)
+        # A. Create Workspace FIRST
         self.center_view = MainWorkspace(self.paned_window)
 
         # B. Create the Command Center "Brain" 
-        # FIXED: Using .master_registry to match your MainWorkspace variable name
         self.cmd_center = CommandCenter(
             master_registry=self.center_view.master_registry, 
             fig=self.center_view.fig, 
             ax=self.center_view.ax
         )
 
-        # C. Create Top Nav and PASS the Command Center
+        # C. Initialize Status Manager (The logic for the new dropdown)
+        # We attach it to center_view so LeftPanel can access it via workspace
+        self.center_view.status_manager = StatusManager(
+            fig=self.center_view.fig,
+            ax=self.center_view.ax,
+            master_registry=self.center_view.master_registry
+        )
+
+        # D. Create Top Nav
         self.top_nav = TopNavigation(
             self, 
             self.toggle_left, 
@@ -63,13 +71,14 @@ class App(ctk.CTk):
         )
         self.top_nav.grid(row=0, column=0, sticky="new")
 
-        # D. Initialize Side Panels
+        # E. Initialize Side Panels
         self.left_panel = LeftPanel(
             self.paned_window, 
             toggle_cmd=self.toggle_left,
             workspace=self.center_view
         )
         
+        # This now triggers build_filter_ui AND build_dropdown_ui
         if hasattr(self.left_panel, "setup_filters"):
             self.left_panel.setup_filters()
 
@@ -77,7 +86,7 @@ class App(ctk.CTk):
 
         # --- 5. LOG SYSTEM STATUS ---
         try:
-            self.center_view.log_analysis("GUI Initialized: Command Center Linked.")
+            self.center_view.log_analysis("GUI Initialized: Status Manager & Command Center Linked.")
             self.center_view.log_analysis("Ready for Emergency Response Operations.")
         except Exception:
             pass 
