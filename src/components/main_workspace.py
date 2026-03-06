@@ -3,7 +3,7 @@ import tkinter as tk
 import matplotlib.pyplot as plt 
 import matplotlib.image as mpimg
 import os
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
 from .terminal_panel import TerminalPanel
 from src.components.core.data_manager import DataManager 
@@ -64,6 +64,35 @@ class MainWorkspace(ctk.CTkFrame):
             workspace=self # Pass workspace reference so inspector can call routing
         )
 
+    def setup_custom_controls(self):
+        # Container for our custom buttons
+        self.button_frame = ctk.CTkFrame(self.work_area, fg_color="transparent")
+        self.button_frame.place(relx=0.02, rely=0.02, anchor="nw") # Top left corner
+
+        # Custom Zoom Button
+        self.zoom_btn = ctk.CTkButton(
+            self.button_frame, text="🔍 Zoom", width=80, height=32,
+            fg_color="#333333", hover_color="#444444",
+            command=self.toolbar.zoom
+        )
+        self.zoom_btn.pack(side="left", padx=5)
+
+        # Custom Pan Button
+        self.pan_btn = ctk.CTkButton(
+            self.button_frame, text="✋ Pan", width=80, height=32,
+            fg_color="#333333", hover_color="#444444",
+            command=self.toolbar.pan
+        )
+        self.pan_btn.pack(side="left", padx=5)
+
+        # Custom Reset (Home) Button
+        self.home_btn = ctk.CTkButton(
+            self.button_frame, text="🏠 Reset", width=80, height=32,
+            fg_color="#333333", hover_color="#444444",
+            command=self.toolbar.home
+        )
+        self.home_btn.pack(side="left", padx=5)
+
     def setup_map(self):
         plt.style.use('dark_background')
         self.fig, self.ax = plt.subplots(figsize=(10, 8), dpi=100)
@@ -80,7 +109,17 @@ class MainWorkspace(ctk.CTkFrame):
 
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.work_area)
         self.canvas_widget = self.canvas.get_tk_widget()
+        
+        # Create it, but DO NOT pack it. This keeps it invisible.
+        self.toolbar = NavigationToolbar2Tk(self.canvas, self.work_area)
+        self.toolbar.pack_forget() 
+
+        # Now pack just the canvas
         self.canvas_widget.pack(fill="both", expand=True)
+        
+        # Add your custom dark buttons
+        self.setup_custom_controls()
+
 
     def plot_facilities(self):
         color_map = get_colors()
