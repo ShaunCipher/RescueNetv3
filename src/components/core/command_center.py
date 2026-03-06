@@ -15,12 +15,25 @@ class CommandCenter:
         # Prevent multiple windows from opening
         if self.window is not None and tk.Toplevel.winfo_exists(self.window):
             self.window.lift()
+            self.window.focus_force()
             return
 
         self.window = tk.Toplevel()
         self.window.title("RescueNet | Emergency Command Center")
-        self.window.geometry("1100x800")
+        
+        # --- FULLSCREEN / MAXIMIZE LOGIC ---
+        # This maximizes the window while keeping the taskbar visible
+        try:
+            self.window.state('zoomed')
+        except tk.TclError:
+            # Fallback for systems that don't support 'zoomed'
+            self.window.geometry("1100x800")
+            
         self.window.configure(bg="#f0f2f5")
+        
+        # Ensure the window comes to the front
+        self.window.lift()
+        self.window.focus_force()
 
         # --- SIDE NAVIGATION ---
         side_panel = tk.Frame(self.window, width=220, bg="#2c3e50")
@@ -32,8 +45,7 @@ class CommandCenter:
         tk.Label(side_panel, text="COMMAND\nCENTER", fg="white", bg="#2c3e50", 
                  font=("Helvetica", 14, "bold"), pady=30).pack()
 
-        # --- CATEGORY FILTERING (The "None" Fix) ---
-        # We only want categories that exist and are NOT 'road' or 'none'
+        # --- CATEGORY FILTERING ---
         valid_cats = []
         for d in self.registry.values():
             cat = d.get('category')
@@ -77,9 +89,9 @@ class CommandCenter:
         header_frame = tk.Frame(self.main_content, bg="white")
         header_frame.pack(fill="x", pady=(0, 20))
         tk.Label(header_frame, text=f"{category.upper()} OVERVIEW", 
-                 font=("Helvetica", 20, "bold"), bg="white", fg="#2c3e50").pack(side="left")
+                 font=("Helvetica", 24, "bold"), bg="white", fg="#2c3e50").pack(side="left")
 
-        # 4. Logic to determine chart type (Responder vs Public Facility)
+        # 4. Logic to determine chart type
         first_item = items[0]
         is_responder = 'staff_present' in first_item
         is_facility = 'occupants' in first_item
@@ -88,17 +100,17 @@ class CommandCenter:
         chart_frame = tk.Frame(self.main_content, bg="white")
         chart_frame.pack(fill="x", pady=10)
 
-        fig, ax = plt.subplots(figsize=(6, 3), dpi=100)
+        # Increased figsize slightly for the larger screen
+        fig, ax = plt.subplots(figsize=(8, 4), dpi=100)
         fig.patch.set_facecolor('white')
 
         try:
             if is_responder:
                 active = sum(int(i.get('staff_present', 0)) for i in items)
                 total = sum(int(i.get('number_of_staff', 0)) for i in items)
-                # Avoid division by zero or empty data errors
                 if total > 0:
                     ax.pie([active, max(0, total-active)], labels=['Active', 'Offline'], 
-                           colors=['#2ecc71', '#95a5a6'], autopct='%1.1f%%', startangle=90)
+                            colors=['#2ecc71', '#95a5a6'], autopct='%1.1f%%', startangle=90)
                 else:
                     ax.text(0.5, 0.5, "No Staff Data", ha='center')
             elif is_facility:
@@ -106,14 +118,14 @@ class CommandCenter:
                 cap = sum(int(i.get('capacity', 0)) for i in items)
                 if cap > 0:
                     ax.pie([occ, max(0, cap-occ)], labels=['Occupied', 'Empty'], 
-                           colors=['#e74c3c', '#3498db'], autopct='%1.1f%%', startangle=90)
+                            colors=['#e74c3c', '#3498db'], autopct='%1.1f%%', startangle=90)
                 else:
                     ax.text(0.5, 0.5, "No Capacity Data", ha='center')
             else:
                 ax.text(0.5, 0.5, "General Statistics", ha='center')
                 ax.axis('off')
 
-            ax.set_title(f"Cumulative {category.capitalize()} Availability", fontsize=10)
+            ax.set_title(f"Cumulative {category.capitalize()} Availability", fontsize=12)
         except (ValueError, TypeError):
             ax.text(0.5, 0.5, "Data Formatting Error", ha='center')
 
@@ -128,12 +140,16 @@ class CommandCenter:
         cols = ("ID", "Name", "Status", "Load/Staffing")
         tree = ttk.Treeview(tree_frame, columns=cols, show="headings")
         
+        # Style the table for better visibility on a large screen
+        style = ttk.Style()
+        style.configure("Treeview", rowheight=30, font=("Helvetica", 11))
+        style.configure("Treeview.Heading", font=("Helvetica", 12, "bold"))
+
         for col in cols:
             tree.heading(col, text=col)
             tree.column(col, width=150, anchor="center")
 
         for item in items:
-            # Determine the value string based on data type
             if is_responder:
                 val = f"{item.get('staff_present', 0)} / {item.get('number_of_staff', 0)} Staff"
             elif is_facility:
@@ -150,7 +166,6 @@ class CommandCenter:
         
         tree.pack(side="left", expand=True, fill="both")
         
-        # Scrollbar for the table
         sb = ttk.Scrollbar(tree_frame, orient="vertical", command=tree.yview)
         tree.configure(yscrollcommand=sb.set)
         sb.pack(side="right", fill="y")
