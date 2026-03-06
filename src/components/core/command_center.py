@@ -12,6 +12,7 @@ class CommandCenter:
         self.main_content = None
 
     def open_dashboard(self):
+        # Prevent multiple windows from opening
         if self.window is not None and tk.Toplevel.winfo_exists(self.window):
             self.window.lift()
             return
@@ -21,6 +22,7 @@ class CommandCenter:
         self.window.geometry("1100x800")
         self.window.configure(bg="#f0f2f5")
 
+        # --- SIDE NAVIGATION ---
         side_panel = tk.Frame(self.window, width=220, bg="#2c3e50")
         side_panel.pack(side="left", fill="y")
         
@@ -30,64 +32,125 @@ class CommandCenter:
         tk.Label(side_panel, text="COMMAND\nCENTER", fg="white", bg="#2c3e50", 
                  font=("Helvetica", 14, "bold"), pady=30).pack()
 
-        found_categories = sorted(list(set(str(d.get('category')) for d in self.registry.values())))
+        # --- CATEGORY FILTERING (The "None" Fix) ---
+        # We only want categories that exist and are NOT 'road' or 'none'
+        valid_cats = []
+        for d in self.registry.values():
+            cat = d.get('category')
+            if cat and str(cat).lower() not in ['none', 'road', 'nan']:
+                valid_cats.append(str(cat))
+        
+        found_categories = sorted(list(set(valid_cats)))
 
+        # Create buttons for each valid facility category
         for cat in found_categories:
-            btn = tk.Button(side_panel, text=cat.upper(), font=("Helvetica", 10, "bold"),
-                            bg="#34495e", fg="white", activebackground="#1abc9c",
-                            relief="flat", pady=12, cursor="hand2",
-                            command=lambda c=cat: self.update_view(c))
+            btn = tk.Button(
+                side_panel, 
+                text=cat.upper(), 
+                font=("Helvetica", 10, "bold"),
+                bg="#34495e", 
+                fg="white", 
+                activebackground="#1abc9c",
+                relief="flat", 
+                pady=12, 
+                cursor="hand2",
+                command=lambda c=cat: self.update_view(c)
+            )
             btn.pack(fill="x", padx=15, pady=5)
 
+        # Show the first category by default if available
+        if found_categories:
+            self.update_view(found_categories[0])
+
     def update_view(self, category):
+        """Refreshes the dashboard content with charts and tables."""
+        # 1. Clear current view
         for widget in self.main_content.winfo_children():
             widget.destroy()
 
+        # 2. Filter registry for selected category
         items = [d for d in self.registry.values() if str(d.get('category')) == category]
-        if not items: return
+        if not items:
+            return
 
+        # 3. Header
         header_frame = tk.Frame(self.main_content, bg="white")
         header_frame.pack(fill="x", pady=(0, 20))
         tk.Label(header_frame, text=f"{category.upper()} OVERVIEW", 
                  font=("Helvetica", 20, "bold"), bg="white", fg="#2c3e50").pack(side="left")
 
-        # --- PIE CHART ---
+        # 4. Logic to determine chart type (Responder vs Public Facility)
+        first_item = items[0]
+        is_responder = 'staff_present' in first_item
+        is_facility = 'occupants' in first_item
+
+        # --- PIE CHART SECTION ---
+        chart_frame = tk.Frame(self.main_content, bg="white")
+        chart_frame.pack(fill="x", pady=10)
+
         fig, ax = plt.subplots(figsize=(6, 3), dpi=100)
         fig.patch.set_facecolor('white')
 
-        first_item = items[0]
-        is_responder = 'staff_present' in first_item
+        try:
+            if is_responder:
+                active = sum(int(i.get('staff_present', 0)) for i in items)
+                total = sum(int(i.get('number_of_staff', 0)) for i in items)
+                # Avoid division by zero or empty data errors
+                if total > 0:
+                    ax.pie([active, max(0, total-active)], labels=['Active', 'Offline'], 
+                           colors=['#2ecc71', '#95a5a6'], autopct='%1.1f%%', startangle=90)
+                else:
+                    ax.text(0.5, 0.5, "No Staff Data", ha='center')
+            elif is_facility:
+                occ = sum(int(i.get('occupants', 0)) for i in items)
+                cap = sum(int(i.get('capacity', 0)) for i in items)
+                if cap > 0:
+                    ax.pie([occ, max(0, cap-occ)], labels=['Occupied', 'Empty'], 
+                           colors=['#e74c3c', '#3498db'], autopct='%1.1f%%', startangle=90)
+                else:
+                    ax.text(0.5, 0.5, "No Capacity Data", ha='center')
+            else:
+                ax.text(0.5, 0.5, "General Statistics", ha='center')
+                ax.axis('off')
 
-        if is_responder:
-            active = sum(int(i.get('staff_present', 0)) for i in items)
-            total = sum(int(i.get('number_of_staff', 0)) for i in items)
-            ax.pie([active, max(0, total-active)], labels=['Active', 'Offline'], 
-                   colors=['#2ecc71', '#95a5a6'], autopct='%1.1f%%', startangle=90)
-        else:
-            occ = sum(int(i.get('occupants', 0)) for i in items)
-            cap = sum(int(i.get('capacity', 0)) for i in items)
-            ax.pie([occ, max(0, cap-occ)], labels=['Occupied', 'Empty'], 
-                   colors=['#e74c3c', '#3498db'], autopct='%1.1f%%', startangle=90)
+            ax.set_title(f"Cumulative {category.capitalize()} Availability", fontsize=10)
+        except (ValueError, TypeError):
+            ax.text(0.5, 0.5, "Data Formatting Error", ha='center')
 
-        canvas = FigureCanvasTkAgg(fig, master=self.main_content)
+        canvas = FigureCanvasTkAgg(fig, master=chart_frame)
         canvas.draw()
-        canvas.get_tk_widget().pack(pady=10, fill="x")
+        canvas.get_tk_widget().pack()
 
-        # --- DATA TABLE ---
+        # --- DATA TABLE SECTION ---
         tree_frame = tk.Frame(self.main_content)
-        tree_frame.pack(expand=True, fill="both")
+        tree_frame.pack(expand=True, fill="both", pady=10)
 
-        cols = ("ID", "Name", "Status", "Value")
+        cols = ("ID", "Name", "Status", "Load/Staffing")
         tree = ttk.Treeview(tree_frame, columns=cols, show="headings")
+        
         for col in cols:
             tree.heading(col, text=col)
-            tree.column(col, width=100, anchor="center")
+            tree.column(col, width=150, anchor="center")
 
         for item in items:
-            val = f"{item.get('staff_present', 0)}/{item.get('number_of_staff', 0)}" if is_responder else f"{item.get('occupants', 0)}/{item.get('capacity', 0)}"
-            tree.insert("", "end", values=(item.get('id'), item.get('name'), item.get('status'), val))
+            # Determine the value string based on data type
+            if is_responder:
+                val = f"{item.get('staff_present', 0)} / {item.get('number_of_staff', 0)} Staff"
+            elif is_facility:
+                val = f"{item.get('occupants', 0)} / {item.get('capacity', 0)} Capacity"
+            else:
+                val = "N/A"
+
+            tree.insert("", "end", values=(
+                item.get('id', 'N/A'), 
+                item.get('name', 'Unknown'), 
+                item.get('status', 'Unknown'), 
+                val
+            ))
         
         tree.pack(side="left", expand=True, fill="both")
+        
+        # Scrollbar for the table
         sb = ttk.Scrollbar(tree_frame, orient="vertical", command=tree.yview)
         tree.configure(yscrollcommand=sb.set)
         sb.pack(side="right", fill="y")
