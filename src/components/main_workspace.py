@@ -3,6 +3,7 @@ import tkinter as tk
 import matplotlib.pyplot as plt 
 import matplotlib.image as mpimg
 import os
+import pandas as pd
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
 from .terminal_panel import TerminalPanel
@@ -11,6 +12,7 @@ from src.components.core.map_utils import get_colors, get_category_order
 from src.components.core.filter_logic import FilterLogic
 from src.components.core.inspect_node import NodeInspector
 from src.components.core.routing_manager import RoutingManager
+from src.components.core.accident_manager import AccidentManager
 
 class MainWorkspace(ctk.CTkFrame):
     def __init__(self, master, **kwargs):
@@ -18,11 +20,11 @@ class MainWorkspace(ctk.CTkFrame):
 
         # 1. Load Data
         self.data_engine = DataManager()
-        # Ensure your load_and_clean_data now also loads edges_df
         self.nodes, self.all_data, self.master_registry = self.data_engine.load_and_clean_data()
         self.plots = {} 
+        self.hover_ann = None 
 
-        # 2. Layout (Vertical Paned Window for Map + Terminal)
+        # 2. Layout
         self.v_paned = tk.PanedWindow(self, orient=tk.VERTICAL, bg="#1a1a1a", sashwidth=4, borderwidth=0)
         self.v_paned.pack(fill="both", expand=True)
 
@@ -32,66 +34,33 @@ class MainWorkspace(ctk.CTkFrame):
         self.v_paned.add(self.work_area, stretch="always")
         self.v_paned.add(self.terminal, height=180, stretch="never")
 
-        # 3. Setup Map and Plots
+        # 3. Setup Map
         self.setup_map()
-        self.plot_facilities()
-
-        # 4. Initialize Engines (Order is important)
         
-        # Filter Logic for the Left Panel checkboxes
-        self.filter_engine = FilterLogic(
-            categories=get_category_order(),
-            plots=self.plots,
-            canvas=self.canvas
-        )
-
-        # Routing Engine for Dijkstra pathfinding
-        # We pass the edges_df directly from the data engine
+        # 4. Initialize Engines (In order)
         self.routing_engine = RoutingManager(
-            self.fig, 
-            self.ax, 
-            self.nodes, 
-            self.data_engine.edges_df 
+            self.fig, self.ax, self.nodes, self.data_engine.edges_df 
         )
 
-        # Node Inspector for clicking nodes and seeing info
+        self.report_manager = AccidentManager(
+            fig=self.fig, ax=self.ax, master_nodes=self.nodes,
+            all_data=self.all_data, master_registry=self.master_registry,
+            plots=self.plots, workspace=self
+        )
+
+        self.filter_engine = FilterLogic(
+            categories=get_category_order(), plots=self.plots, canvas=self.canvas
+        )
+
         self.inspector = NodeInspector(
-            self.fig, 
-            self.ax, 
-            self.plots, 
-            self.all_data, 
-            self.master_registry,
-            workspace=self # Pass workspace reference so inspector can call routing
+            self.fig, self.ax, self.plots, self.all_data, self.master_registry, workspace=self 
         )
 
-    def setup_custom_controls(self):
-        # Container for our custom buttons
-        self.button_frame = ctk.CTkFrame(self.work_area, fg_color="transparent")
-        self.button_frame.place(relx=0.02, rely=0.02, anchor="nw") # Top left corner
-
-        # Custom Zoom Button
-        self.zoom_btn = ctk.CTkButton(
-            self.button_frame, text="🔍 Zoom", width=80, height=32,
-            fg_color="#333333", hover_color="#444444",
-            command=self.toolbar.zoom
-        )
-        self.zoom_btn.pack(side="left", padx=5)
-
-        # Custom Pan Button
-        self.pan_btn = ctk.CTkButton(
-            self.button_frame, text="✋ Pan", width=80, height=32,
-            fg_color="#333333", hover_color="#444444",
-            command=self.toolbar.pan
-        )
-        self.pan_btn.pack(side="left", padx=5)
-
-        # Custom Reset (Home) Button
-        self.home_btn = ctk.CTkButton(
-            self.button_frame, text="🏠 Reset", width=80, height=32,
-            fg_color="#333333", hover_color="#444444",
-            command=self.toolbar.home
-        )
-        self.home_btn.pack(side="left", padx=5)
+        # 5. Plot Layers
+        self.plot_facilities()        # Plots Roads, Hospitals, etc. (Excluding Accidents)
+        self.refresh_accident_plot()  # Plots only the Red X Accidents
+        
+        self.fig.canvas.mpl_connect("motion_notify_event", self.on_hover)
 
     def setup_map(self):
         plt.style.use('dark_background')
@@ -103,41 +72,108 @@ class MainWorkspace(ctk.CTkFrame):
             map_path = os.path.join('img', 'map.png')
             img = mpimg.imread(map_path)
             self.ax.imshow(img)
-            self.ax.axis('on') 
+            self.ax.axis('off')
         except FileNotFoundError:
-            self.terminal.log("ERROR: map.png not found.")
+            self.terminal.log("ERROR: img/map.png not found.")
+
+        self.hover_ann = self.ax.annotate(
+            "", xy=(0,0), xytext=(15,15), textcoords="offset points",
+            bbox=dict(boxstyle="round", fc="#2c3e50", ec="white", alpha=0.9),
+            fontsize=9, color="white", fontweight="bold", zorder=200
+        )
+        self.hover_ann.set_visible(False)
 
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.work_area)
         self.canvas_widget = self.canvas.get_tk_widget()
-        
-        # Create it, but DO NOT pack it. This keeps it invisible.
         self.toolbar = NavigationToolbar2Tk(self.canvas, self.work_area)
         self.toolbar.pack_forget() 
 
-        # Now pack just the canvas
         self.canvas_widget.pack(fill="both", expand=True)
-        
-        # Add your custom dark buttons
         self.setup_custom_controls()
 
+    def setup_custom_controls(self):
+        self.button_frame = ctk.CTkFrame(self.work_area, fg_color="transparent")
+        self.button_frame.place(relx=0.02, rely=0.02, anchor="nw")
+        btns = [
+            ("🔍 Zoom", self.toolbar.zoom),
+            ("✋ Pan", self.toolbar.pan),
+            ("🏠 Reset", self.toolbar.home),
+            ("🔄 Refresh", self.refresh_accident_plot)
+        ]
+        for text, cmd in btns:
+            ctk.CTkButton(self.button_frame, text=text, width=80, height=32,
+                          fg_color="#333333", hover_color="#444444", command=cmd).pack(side="left", padx=5)
 
     def plot_facilities(self):
+        """Initial plot of infrastructure. STRICTLY excludes accident nodes."""
         color_map = get_colors()
+        
+        # We ensure we only plot categories defined in map_utils, excluding 'accident'
         for cat in get_category_order():
             cat_lower = cat.lower()
-            group = self.all_data[self.all_data['category'] == cat_lower]
+            if cat_lower == 'accident': 
+                continue 
             
+            group = self.all_data[self.all_data['category'] == cat_lower]
             if not group.empty:
-                # picker=True allows the NodeInspector to detect the click
                 self.plots[cat_lower] = self.ax.scatter(
                     group['x'], group['y'], 
                     c=color_map.get(cat_lower, 'white'), 
                     s=80, edgecolors='white', linewidth=0.5, zorder=5,
-                    picker=True, 
-                    pickradius=5
+                    picker=True, pickradius=5
                 )
         self.canvas.draw()
 
+    def refresh_accident_plot(self):
+        """Clears and redraws the specialized Accident layer."""
+        # 1. Remove existing plot if it exists
+        if 'accident' in self.plots:
+            try:
+                self.plots['accident'].remove()
+            except:
+                pass
+            del self.plots['accident']
+
+        # 2. Load fresh data from accidents.csv
+        acc_path = os.path.join('data', 'accidents.csv')
+        if os.path.exists(acc_path):
+            try:
+                df = pd.read_csv(acc_path)
+                # Only plot if there are actual rows
+                if not df.empty:
+                    self.plots['accident'] = self.ax.scatter(
+                        df['x'], df['y'], 
+                        c='#e74c3c', s=200, marker='X', 
+                        edgecolors='white', linewidth=2, 
+                        zorder=30, label='Accidents'
+                    )
+                self.canvas.draw_idle()
+            except Exception as e:
+                self.log_analysis(f"Error drawing accidents: {e}")
+
+    def on_hover(self, event):
+        if event.inaxes != self.ax: return
+        vis = self.hover_ann.get_visible()
+        found = False
+
+        if 'accident' in self.plots:
+            cont, ind = self.plots['accident'].contains(event)
+            if cont:
+                acc_path = os.path.join('data', 'accidents.csv')
+                df = pd.read_csv(acc_path)
+                idx = ind["ind"][0]
+                if idx < len(df):
+                    row = df.iloc[idx]
+                    info = f"INCIDENT: {row['name']}\nSEVERITY: {row.get('severity','N/A')}\nVICTIMS: {row['num_victims']}"
+                    self.hover_ann.xy = (row['x'], row['y'])
+                    self.hover_ann.set_text(info)
+                    self.hover_ann.set_visible(True)
+                    found = True
+
+        if not found and vis:
+            self.hover_ann.set_visible(False)
+        if found or (not found and vis):
+            self.canvas.draw_idle()
+
     def log_analysis(self, message):
-        """Allows other components to print to the bottom terminal"""
         self.terminal.log(message)

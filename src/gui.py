@@ -1,12 +1,17 @@
 import customtkinter as ctk
 import tkinter as tk
 import matplotlib.pyplot as plt
+import os
+
+# Components
 from src.components.top_nav import TopNavigation
 from src.components.left_panel import LeftPanel
 from src.components.right_panel import RightPanel
 from src.components.main_workspace import MainWorkspace 
+
+# Core Engines
 from src.components.core.command_center import CommandCenter 
-from src.components.core.status_manager import StatusManager # Added Import
+from src.components.core.status_manager import StatusManager
 from src.theme import Theme
 
 class App(ctk.CTk):
@@ -14,10 +19,11 @@ class App(ctk.CTk):
         super().__init__()
 
         # --- 1. WINDOW SETUP & PROTOCOL ---
-        self.title("RescueNet | DRRM Parian")
+        self.title("RescueNet | DRRM Parian Calamba")
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         ctk.set_appearance_mode("dark")
 
+        # Fullscreen setup
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
         self.geometry(f"{screen_width}x{screen_height}+0+0")
@@ -45,6 +51,7 @@ class App(ctk.CTk):
         # --- 4. INITIALIZE COMPONENTS (Strict Order) ---
         
         # A. Create Workspace FIRST
+        # This instance contains the Map, Data, and the AccidentManager (report_manager)
         self.center_view = MainWorkspace(self.paned_window)
 
         # B. Create the Command Center "Brain" 
@@ -54,31 +61,38 @@ class App(ctk.CTk):
             ax=self.center_view.ax
         )
 
-        # C. Initialize Status Manager (The logic for the new dropdown)
-        # We attach it to center_view so LeftPanel can access it via workspace
+        # C. THE HANDSHAKE (Crucial Fix)
+        # We link the AccidentManager instance from the workspace to the command center
+        # so that the Top Nav button can find it.
+        if hasattr(self.center_view, "report_manager"):
+            self.cmd_center.report_manager = self.center_view.report_manager
+        else:
+            print("WARNING: report_manager not found in MainWorkspace!")
+
+        # D. Initialize Status Manager
         self.center_view.status_manager = StatusManager(
             fig=self.center_view.fig,
             ax=self.center_view.ax,
             master_registry=self.center_view.master_registry
         )
 
-        # D. Create Top Nav
+        # E. Create Top Nav
+        # We pass cmd_center here so the TopNav buttons can call cmd_center.report_manager
         self.top_nav = TopNavigation(
             self, 
             self.toggle_left, 
             self.toggle_right,
-            command_center=self.cmd_center
+            command_center=self.cmd_center 
         )
         self.top_nav.grid(row=0, column=0, sticky="new")
 
-        # E. Initialize Side Panels
+        # F. Initialize Side Panels
         self.left_panel = LeftPanel(
             self.paned_window, 
             toggle_cmd=self.toggle_left,
             workspace=self.center_view
         )
         
-        # This now triggers build_filter_ui AND build_dropdown_ui
         if hasattr(self.left_panel, "setup_filters"):
             self.left_panel.setup_filters()
 
@@ -86,25 +100,25 @@ class App(ctk.CTk):
 
         # --- 5. LOG SYSTEM STATUS ---
         try:
-            self.center_view.log_analysis("GUI Initialized: Status Manager & Command Center Linked.")
-            self.center_view.log_analysis("Ready for Emergency Response Operations.")
+            self.center_view.log_analysis("GUI Initialized: Systems Linked.")
+            self.center_view.log_analysis("Command Center & Accident Manager online.")
         except Exception:
             pass 
 
         # --- 6. ADD TO PANED WINDOW ---
-        self.paned_window.add(self.left_panel, width=250, stretch="never")
+        self.paned_window.add(self.left_panel, width=280, stretch="never")
         self.paned_window.add(self.center_view, stretch="always")
-        self.paned_window.add(self.right_panel, width=250, stretch="never")
+        self.paned_window.add(self.right_panel, width=280, stretch="never")
 
         # --- 7. FLOATING RE-OPEN BUTTONS ---
         self.btn_reopen_left = ctk.CTkButton(
-            self, text=">", width=15, height=60, 
+            self, text=">", width=20, height=60, 
             fg_color=Theme.BG_DARKER, hover_color=Theme.HOVER_GRAY,
             command=self.toggle_left
         )
         
         self.btn_reopen_right = ctk.CTkButton(
-            self, text="<", width=15, height=60, 
+            self, text="<", width=20, height=60, 
             fg_color=Theme.BG_DARKER, hover_color=Theme.HOVER_GRAY,
             command=self.toggle_right
         )
@@ -119,10 +133,10 @@ class App(ctk.CTk):
             except: pass
         
         if self.left_visible:
-            self.paned_window.add(self.left_panel, width=250, stretch="never")
+            self.paned_window.add(self.left_panel, width=280, stretch="never")
         self.paned_window.add(self.center_view, stretch="always")
         if self.right_visible:
-            self.paned_window.add(self.right_panel, width=250, stretch="never")
+            self.paned_window.add(self.right_panel, width=280, stretch="never")
 
     def toggle_left(self):
         if self.left_visible:

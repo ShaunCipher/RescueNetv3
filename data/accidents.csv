@@ -1,4 +1,3 @@
-id,name,x,y,num_victims,status,need_hospital,need_police,need_firestation,need_evac
-417,Accident_12,858.3394029850746,299.7454805970152,12,REPORTED,True,False,False,True
-418,Accident_1,933.2623880597015,686.8475701492539,1,REPORTED,False,True,False,False
-419,Accident 3,220.89785447761187,350.3151352611942,1,REPORTED,False,True,False,False
+id,name,num_victims,severity,status,need_medical,need_police,need_firestation,need_evac,sent_medical,sent_police,sent_firestation,sent_evac
+423,rstgfd,56,Critical,REPORTED,1,0,1,0,,,,
+425,ssss,1,Minor,REPORTED,0,1,0,0,,,,
