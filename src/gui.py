@@ -3,9 +3,8 @@ import tkinter as tk
 import matplotlib.pyplot as plt
 import os
 
-
+import csv
 from utils.binary_search import binary_search
-
 
 # Components
 from src.components.top_nav import TopNavigation
@@ -109,6 +108,23 @@ class App(ctk.CTk):
         except Exception:
             pass 
 
+
+        # --- BINARY SEARCH TEST USING DISTANCE ---
+
+        facilities = self.load_facilities()
+
+        # Sort facilities by distance
+        facilities = sorted(facilities, key=lambda x: x["distance"])
+
+        target_distance = 3.0
+
+        index = binary_search(facilities, target_distance, "distance")
+
+        if index != -1:
+            print("Facility Found:", facilities[index])
+        else:
+            print("No facility with that distance found")
+
         # --- 6. ADD TO PANED WINDOW ---
         self.paned_window.add(self.left_panel, width=280, stretch="never")
         self.paned_window.add(self.center_view, stretch="always")
@@ -161,6 +177,27 @@ class App(ctk.CTk):
             self.btn_reopen_right.place_forget()
             self.right_visible = True
             self._refresh_panes()
+
+    def load_facilities(self):
+
+        facilities = []
+
+        try:
+            with open("data/hospitals.csv", newline='', encoding="utf-8") as file:
+                reader = csv.DictReader(file)
+
+                for row in reader:
+                    facilities.append({
+                        "facility_id": int(row["facility_id"]),
+                        "name": row["name"],
+                        "type": "hospital",
+                        "distance": float(row["distance"])
+                    })
+
+        except Exception as e:
+            print("Error loading facility data:", e)
+
+        return facilities
 
     def on_closing(self):
         plt.close('all')
