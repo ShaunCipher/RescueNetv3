@@ -202,39 +202,82 @@ class AccidentManager:
     def cancel_route(self, acc_id, tree_widget):
         sel = tree_widget.selection()
         if not sel: return
-        fac_id = int(tree_widget.item(sel[0])['tags'][0])
+        
+        # 1. Get Facility Info
+        item = tree_widget.item(sel[0])
+        fac_name = item['values'][0].replace("✅ ", "") # Clean the checkmark if present
+        fac_id = int(item['tags'][0])
+        
+        # 2. Remove from Map
         key = (int(acc_id), fac_id)
         if key in self.active_paths:
             path_obj = self.active_paths[key]
             if isinstance(path_obj, list):
-                for seg in path_obj: seg.remove()
-            else: path_obj.remove()
+                for seg in path_obj: 
+                    try: seg.remove()
+                    except: pass
+            else: 
+                try: path_obj.remove()
+                except: pass
             del self.active_paths[key]
             self.fig.canvas.draw_idle()
-            messagebox.showinfo("Cancelled", "Routing removed from map.")
+
+        # 3. Remove from CSV Data (So it won't show in History)
+        df = pd.read_csv(self.acc_file)
+        # Check all possible sent columns
+        sent_cols = ['sent_medical', 'sent_police', 'sent_firestation', 'sent_evac']
+        for col in sent_cols:
+            if col in df.columns:
+                val = str(df.loc[df['id'] == int(acc_id), col].values[0])
+                if fac_name in val:
+                    # Remove the name and clean up commas
+                    new_val = val.replace(fac_name, "").replace(", ,", ",").strip(", ")
+                    df.loc[df['id'] == int(acc_id), col] = new_val
+        
+        df.to_csv(self.acc_file, index=False)
+        tree_widget.item(sel[0], values=(fac_name, "CANCELLED"))
+        messagebox.showinfo("Cancelled", f"Route to {fac_name} removed.")
+
 
     def archive_incident(self, outcome):
         sel = self.tree.selection()
         if not sel: return
         acc_id = int(self.tree.item(sel[0])['values'][0])
+        
         df_acc = pd.read_csv(self.acc_file)
         df_nodes = pd.read_csv(self.node_file)
         
+        # Get the specific rows
         row = df_acc[df_acc['id'] == acc_id].iloc[0]
         node = df_nodes[df_nodes['id'] == acc_id].iloc[0]
 
+        # Explicitly mapping the 'sent' columns to the history
         hist = {
-            "id": acc_id, "name": row['name'], "x": node['x'], "y": node['y'],
-            "severity": row['severity'], "num_victims": row['num_victims'],
-            "sent_medical": row.get('sent_medical', ""), "sent_police": row.get('sent_police', ""),
-            "sent_firestation": row.get('sent_firestation', ""), "sent_evac": row.get('sent_evac', ""),
-            "outcome": outcome, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
+            "id": acc_id, 
+            "name": row['name'], 
+            "x": node['x'], 
+            "y": node['y'],
+            "severity": row['severity'], 
+            "num_victims": row['num_victims'],
+            "sent_medical": row.get('sent_medical', ""), 
+            "sent_police": row.get('sent_police', ""),
+            "sent_firestation": row.get('sent_firestation', ""), 
+            "sent_evac": row.get('sent_evac', ""),
+            "outcome": outcome, 
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
         }
+        
+        # Save to history
         pd.DataFrame([hist]).to_csv(self.hist_file, mode='a', header=not os.path.exists(self.hist_file), index=False)
-        for f in [self.acc_file, self.node_file]:
-            d = pd.read_csv(f); d[d['id'] != acc_id].to_csv(f, index=False)
+        
+        # Remove from active files
+        df_acc[df_acc['id'] != acc_id].to_csv(self.acc_file, index=False)
+        df_nodes[df_nodes['id'] != acc_id].to_csv(self.node_file, index=False)
+        
         self.draw_accidents_on_map()
         self.refresh_table()
+        messagebox.showinfo("Success", f"Incident {acc_id} archived as {outcome}")
+
 
     def refresh_table(self):
         for i in self.tree.get_children(): self.tree.delete(i)
@@ -300,10 +343,20 @@ class AccidentManager:
             self.on_accident_selected(name)
 
     def clear_map_graphics(self):
-        for path in self.active_paths.values():
-            if isinstance(path, list):
-                for seg in path: seg.remove()
-            else: path.remove()
+        # 1. Clear all active path lines
+        for key in list(self.active_paths.keys()):
+            path_obj = self.active_paths[key]
+            if isinstance(path_obj, list):
+                for seg in path_obj:
+                    try: seg.remove()
+                    except: pass
+            else:
+                try: path_obj.remove()
+                except: pass
+        
+        # 2. Reset the dictionary
         self.active_paths = {}
+        
+        # 3. Redraw the basic accident markers
         self.draw_accidents_on_map()
         self.fig.canvas.draw_idle()
