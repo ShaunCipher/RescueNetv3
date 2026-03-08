@@ -2,7 +2,7 @@ import customtkinter as ctk
 import tkinter as tk
 import matplotlib.pyplot as plt
 import os
-
+import math
 import csv
 from utils.binary_search import binary_search
 
@@ -180,18 +180,24 @@ class App(ctk.CTk):
 
     def load_facilities(self):
 
+        import csv
+        import random
+        random.seed(42)
+
         facilities = []
 
         try:
             with open("data/hospitals.csv", newline='', encoding="utf-8") as file:
+
                 reader = csv.DictReader(file)
 
                 for row in reader:
+
                     facilities.append({
-                        "facility_id": int(row["facility_id"]),
+                        "facility_id": int(row["id"]),
                         "name": row["name"],
                         "type": "hospital",
-                        "distance": float(row["distance"])
+                        "distance": round(random.uniform(1, 10), 2)
                     })
 
         except Exception as e:
