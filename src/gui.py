@@ -3,6 +3,10 @@ import tkinter as tk
 import matplotlib.pyplot as plt
 import os
 
+
+from utils.binary_search import binary_search
+
+
 # Components
 from src.components.top_nav import TopNavigation
 from src.components.left_panel import LeftPanel
