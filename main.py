@@ -1,3 +1,4 @@
+
 from src.gui import App
 
 from utils.binary_search import binary_search

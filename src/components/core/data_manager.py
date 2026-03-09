@@ -24,7 +24,7 @@ class DataManager:
         # 2. Define Modular Facility Files
         facility_files = [
             'hospitals.csv', 'firestations.csv', 'policestations.csv', 
-            'drrm.csv', 'schools.csv', 'churches.csv', 'accidents.csv'
+            'drrm.csv', 'schools.csv', 'churches.csv'
         ]
 
         frames = []
