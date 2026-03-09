@@ -21,10 +21,16 @@ class DataManager:
         self.nodes_df.columns = self.nodes_df.columns.str.strip()
         self.edges_df.columns = self.edges_df.columns.str.strip()
 
+        # Ensure ID keys are consistent (avoid int/str mismatches on merge)
+        if 'id' in self.nodes_df.columns:
+            self.nodes_df['id'] = self.nodes_df['id'].astype(str).str.strip()
+        if 'id' in self.edges_df.columns:
+            self.edges_df['id'] = self.edges_df['id'].astype(str).str.strip()
+
         # 2. Define Modular Facility Files
         facility_files = [
             'hospitals.csv', 'firestations.csv', 'policestations.csv', 
-            'drrm.csv', 'schools.csv', 'churches.csv', 'accidents.csv'
+            'drrm.csv', 'schools.csv', 'churches.csv'
         ]
 
         frames = []
@@ -34,7 +40,11 @@ class DataManager:
                 df = pd.read_csv(path)
                 # Clean headers (fixes "occupants " vs "occupants")
                 df.columns = df.columns.str.strip()
-                
+
+                # Normalize IDs to match nodes_df (avoid int/str mismatch on merge)
+                if 'id' in df.columns:
+                    df['id'] = df['id'].astype(str).str.strip()
+
                 # Merge with nodes_df to get X, Y coordinates based on ID
                 df = df.merge(self.nodes_df[['id', 'x', 'y']], on='id', how='left')
                 
@@ -42,7 +52,12 @@ class DataManager:
                 
                 # Store in registry for the Inspector to use
                 for _, row in df.iterrows():
-                    self.master_registry[int(row['id'])] = row.to_dict()
+                    try:
+                        key = int(row['id'])
+                    except (ValueError, TypeError):
+                        # Skip invalid/missing IDs
+                        continue
+                    self.master_registry[key] = row.to_dict()
 
         # 3. Create the master dataframe for plotting/filtering
         if frames:

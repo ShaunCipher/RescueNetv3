@@ -1,6 +1,7 @@
 import matplotlib.colors as mcolors
 from src.components.core import map_utils
-import __main__
+import os
+import pandas as pd
 
 class DraggableAnnotation:
     """Handles the click-and-drag functionality for map popups."""
@@ -77,11 +78,13 @@ class NodeInspector:
         # 1. Extract data based on category
         if category.lower() == 'accident':
             try:
-                # Assuming rep_mgr is available in __main__ for live accident data
-                row = __main__.rep_mgr.current_accidents_df.iloc[index]
+                base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+                acc_path = os.path.join(base_dir, "data", "accidents.csv")
+                acc_df = pd.read_csv(acc_path)
+                row = acc_df.iloc[index]
                 node_id = int(row.get('id', 0))
                 data = row.to_dict()
-            except (AttributeError, IndexError):
+            except (FileNotFoundError, IndexError, pd.errors.EmptyDataError):
                 return
         else:
             # Filter all_data to find the specific node for static facilities
@@ -102,11 +105,6 @@ class NodeInspector:
             del self.active_popups[node_id]
         else:
             self._create_popup(node_id, category, data)
-            
-            # 3. Trigger Routing if an accident is inspected
-            if category.lower() == 'accident' and self.workspace:
-                self.workspace.routing_engine.find_nearest(node_id, 'hospital')
-                self.workspace.routing_engine.find_nearest(node_id, 'firestation')
         
         self.fig.canvas.draw_idle()
 

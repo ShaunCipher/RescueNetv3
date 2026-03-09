@@ -44,7 +44,7 @@ class RoutingManager:
     def __init__(self, fig, ax, master_nodes_df, edges_df):
         self.fig = fig
         self.ax = ax
-        self.master_nodes = master_nodes_df
+        self.master_nodes = master_nodes_df.copy()
         self.edges_df = edges_df
         
         self.active_route_lines = {}
@@ -52,8 +52,14 @@ class RoutingManager:
         self.active_popups = {}      
         self.draggable_instances = {}
         
-        self.data_dir = os.path.join(os.getcwd(), 'data')
-        self.coords_map = self.master_nodes.set_index('id')[['x', 'y']].T.to_dict('list')
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        self.data_dir = os.path.join(base_dir, "data")
+
+        # Normalize node IDs once so graph IDs and coordinate keys use the same type.
+        self.master_nodes["id"] = pd.to_numeric(self.master_nodes["id"], errors="coerce")
+        self.master_nodes = self.master_nodes.dropna(subset=["id", "x", "y"]).copy()
+        self.master_nodes["id"] = self.master_nodes["id"].astype(int)
+        self.coords_map = self.master_nodes.set_index("id")[["x", "y"]].T.to_dict("list")
         
         self.G = nx.Graph()
         self.refresh_graph()
@@ -62,8 +68,17 @@ class RoutingManager:
 
     def refresh_graph(self):
         self.G.clear()
-        for _, row in self.edges_df.iterrows():
-            self.G.add_edge(int(row['from']), int(row['to']), weight=float(row['weight']))
+        if self.edges_df.empty:
+            return
+
+        cleaned = self.edges_df.copy()
+        cleaned["from"] = pd.to_numeric(cleaned["from"], errors="coerce")
+        cleaned["to"] = pd.to_numeric(cleaned["to"], errors="coerce")
+        cleaned["weight"] = pd.to_numeric(cleaned["weight"], errors="coerce")
+        cleaned = cleaned.dropna(subset=["from", "to", "weight"])
+
+        for _, row in cleaned.iterrows():
+            self.G.add_edge(int(row["from"]), int(row["to"]), weight=float(row["weight"]))
 
     def load_facility_nodes(self):
         file_list = ['hospitals.csv', 'firestations.csv', 'policestations.csv', 
@@ -87,6 +102,10 @@ class RoutingManager:
             
             self.clear_all_routes()
             
+            missing_nodes = [node for node in path if node not in self.coords_map]
+            if missing_nodes:
+                raise ValueError(f"Missing coordinates for node IDs: {missing_nodes}")
+
             path_x = [self.coords_map[node][0] for node in path]
             path_y = [self.coords_map[node][1] for node in path]
             
@@ -98,8 +117,8 @@ class RoutingManager:
             self.fig.canvas.draw_idle()
         except (nx.NetworkXNoPath, nx.NodeNotFound):
             messagebox.showerror("Error", "No road path found.")
-        except Exception:
-            pass
+        except Exception as exc:
+            messagebox.showerror("Routing Error", str(exc))
 
     def on_pick_route(self, event):
         artist = event.artist

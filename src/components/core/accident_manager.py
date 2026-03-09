@@ -19,10 +19,12 @@ class AccidentManager:
         self.workspace = workspace
         
         # File path definitions
-        self.acc_file = 'data/accidents.csv'
-        self.node_file = 'data/nodes.csv'
-        self.edge_file = 'data/edges.csv'
-        self.hist_file = 'data/accident_history.csv'
+        self.base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        self.data_dir = os.path.join(self.base_dir, "data")
+        self.acc_file = os.path.join(self.data_dir, "accidents.csv")
+        self.node_file = os.path.join(self.data_dir, "nodes.csv")
+        self.edge_file = os.path.join(self.data_dir, "edges.csv")
+        self.hist_file = os.path.join(self.data_dir, "accident_history.csv")
         
         # Initialize Router with current edge data
         if os.path.exists(self.edge_file):
@@ -369,7 +371,9 @@ class AccidentManager:
         for _, row in df.iterrows():
             self.tree.insert("", "end", values=(row['id'], row['name'], row['severity'], row['num_victims'], row['status']))
             
-        self.acc_dropdown.configure(values=list(dict.fromkeys(df['name'].astype(str).tolist())))
+        # Ensure dropdown values are strings and skip missing entries
+        names = [str(n) for n in df['name'].dropna().unique() if str(n).strip()]
+        self.acc_dropdown.configure(values=names)
 
     def activate_map_picker(self):
         self.cid = self.fig.canvas.mpl_connect('button_press_event', self.on_map_click)
