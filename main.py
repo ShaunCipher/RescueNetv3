@@ -1,4 +1,3 @@
-
 from src.gui import App
 
 def main():

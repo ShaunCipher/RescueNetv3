@@ -1,0 +1,12 @@
+id,name,category,capacity,occupants,operating_hours,status,is_open
+365,Church_1,Church,550,0,06:00-21:00,Available,TRUE
+373,Church_2,Church,450,0,00:00-23:59,Available,TRUE
+379,Church_3,Church,200,10,00:00-23:59,Available,TRUE
+383,Church_4,Church,225,0,00:00-23:59,Available,TRUE
+388,Church_5,Church,325,0,00:00-23:59,Available,TRUE
+392,Church_6,Church,425,0,00:00-23:59,Available,TRUE
+394,Church_7,Church,475,0,00:00-23:59,Available,TRUE
+397,Church_8,Church,235,0,00:00-23:59,Available,TRUE
+399,Church_9,Church,425,0,00:00-23:59,Available,TRUE
+404,Church_10,Church,500,0,00:00-23:59,Available,TRUE
+407,Church_11,Church,475,0,00:00-23:59,Available,TRUE
