@@ -8,8 +8,9 @@ class LeftPanel(ctk.CTkFrame):
         super().__init__(master, width=250, corner_radius=0, fg_color="#2b2b2b", **kwargs)
         self.workspace = workspace
         
-        base_dir = r"C:\Users\milca\OneDrive\Documents\GitHub\RescueNetv2.1\RescueNetv3"
-        self.data_dir = os.path.join(base_dir, "data")
+        # Use relative path from project root
+        self.base_dir = self.get_root_path()
+        self.data_dir = os.path.join(self.base_dir, "data")
         
         print(f"DEBUG: Looking for CSVs in: {self.data_dir}")
         
