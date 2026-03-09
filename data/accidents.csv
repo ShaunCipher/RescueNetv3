@@ -1,2 +1,3 @@
 id,name,num_victims,severity,status,need_medical,need_police,need_firestation,need_evac,sent_medical,sent_police,sent_firestation,sent_evac
-425,ssss,1,Minor,REPORTED,0,1,0,0,,Policestation_2,,
+425,ssss,1,Minor,REPORTED,0,1,0,0,,"Policestation_2, Policestation_1, Policestation_1, Policestation_6",,
+426,hgf,5,Minor,REPORTED,0,0,1,1
