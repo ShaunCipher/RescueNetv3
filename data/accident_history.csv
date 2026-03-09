@@ -1,5 +1,4 @@
-id,name,x,y,severity,num_victims,sent_med,sent_police,sent_fire,sent_evac,outcome,timestamp
-420,asd,286.66,232.53,Moderate,12,,,,,DELETED,2026-03-08 01:30
-421,qwe,206.24,360.48,Moderate,5,,,,,COMPLETED,2026-03-08 01:32
-424,23,300.43,249.75,Critical,1234,,,,,DELETED,2026-03-08 02:22
-420,rty,186.78,377.18,Minor,6,"Hospital_4, Hospital_1, Hospital_1, Hospital_1",,"Firestation_2, Firestation_3, Firestation_3",,COMPLETED,2026-03-08 02:23
+id,name,severity,outcome,timestamp
+426,uytre,Minor,COMPLETED,2026-03-09 09:00
+427,nbv,Minor,COMPLETED,2026-03-09 09:19
+427,dfgh,Moderate,COMPLETED,2026-03-09 09:44

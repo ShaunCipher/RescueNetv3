@@ -4,4 +4,4 @@ id,name,num_victims,severity,status,need_medical,need_police,need_firestation,ne
 426,road accident,11,Minor,REPORTED,1,1,0,0,Hospital_6,,,
 427,asd,12,Minor,REPORTED,1,1,0,0,,,,
 428,asd,12,Critical,REPORTED,1,1,0,0,,,,
-429,road accident,2,Minor,REPORTED,1,1,0,0,,,,
+429,road accident,2,Minor,REPORTED,1,1,0,0,,,
