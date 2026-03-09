@@ -1,0 +1,11 @@
+﻿id,name,category,number_of_staff,staff_present,status,is_open
+372,Policestation_1,Policestation,50,45,Available,TRUE
+375,Policestation_2,Policestation,25,22,Available,TRUE
+380,Policestation_3,Policestation,30,30,Available,TRUE
+384,Policestation_4,Policestation,45,40,Available,TRUE
+387,Policestation_5,Policestation,50,50,Available,TRUE
+396,Policestation_6,Policestation,50,49,Available,TRUE
+400,Policestation_7,Policestation,30,26,Available,TRUE
+402,Policestation_8,Policestation,36,30,Available,TRUE
+403,Policestation_9,Policestation,40,30,Available,TRUE
+408,Policestation_10,Policestation,50,45,Available,TRUE
