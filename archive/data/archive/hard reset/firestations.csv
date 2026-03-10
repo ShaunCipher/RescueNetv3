@@ -1,7 +1,0 @@
-﻿id,name,category,number_of_staff,staff_present,status,is_open
-367,Firestation_1,Firestation,30,30,Available,TRUE
-371,Firestation_2,Firestation,25,22,Available,TRUE
-376,Firestation_3,Firestation,20,18,Available,TRUE
-391,Firestation_4,Firestation,35,34,Available,TRUE
-414,Firestation_5,Firestation,40,40,Available,TRUE
-415,Firestation_6,Firestation,30,30,Available,TRUE
