@@ -224,6 +224,7 @@ class LeftPanel(ctk.CTkFrame):
         for widget in self.results_scroll.winfo_children():
             widget.destroy()
 
+
         # 3. Get the accident location and sort facilities
         accident_coords = self.get_accident_coordinates()
         edges_df = None
