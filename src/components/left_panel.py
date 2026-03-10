@@ -2,6 +2,7 @@ import customtkinter as ctk
 import os
 import csv
 from src.components.core.merge_sort import merge_sort, sort_facilities_by_distance
+from .network_editor import NetworkEditor
 
 class LeftPanel(ctk.CTkFrame):
     def __init__(self, master, toggle_cmd, workspace=None, **kwargs):
@@ -65,6 +66,7 @@ class LeftPanel(ctk.CTkFrame):
         )
         self.sort_btn.pack(fill="x", padx=10, pady=(0, 10))
 
+        # Existing Route Button
         self.route_btn = ctk.CTkButton(
             self.action_frame,
             text="Route Facilities",
@@ -73,7 +75,18 @@ class LeftPanel(ctk.CTkFrame):
             hover_color="#14375e",
             command=self.open_routing
         )
-        self.route_btn.pack(fill="x", padx=10)
+        self.route_btn.pack(fill="x", padx=10, pady=(0, 10))
+
+        # NEW: Road Network Editor Button
+        self.editor_btn = ctk.CTkButton(
+            self.action_frame,
+            text="🛠️ Edit Road Network",
+            height=40,
+            fg_color="#4a4a4a",
+            hover_color="#5a5a5a",
+            command=self.open_network_editor
+        )
+        self.editor_btn.pack(fill="x", padx=10)
 
     # --- TOGGLE LOGIC ---
 
@@ -84,7 +97,6 @@ class LeftPanel(ctk.CTkFrame):
         else:
             self.facility_dropdown_container.pack(fill="x", pady=(5, 0))
             self.facility_toggle_btn.configure(text="▼ Facility Visibility")
-
         self.is_facility_open = not self.is_facility_open
 
     def toggle_status_menu(self):
@@ -345,4 +357,10 @@ class LeftPanel(ctk.CTkFrame):
                 self.routing_window.lift()
                 return
             self.routing_window = self.workspace.routing_engine.open_route_window(self.workspace.all_data)
-            
+
+    def open_network_editor(self):
+        if hasattr(self, 'editor_window') and self.editor_window.winfo_exists():
+            self.editor_window.focus_force()
+        else:
+            self.editor_window = NetworkEditor(self.master, workspace=self.workspace)
+            self.editor_window.grab_set()
