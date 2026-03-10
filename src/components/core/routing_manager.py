@@ -170,7 +170,7 @@ class RoutingManager:
         if df.empty:
             messagebox.showerror("Data Error", f"No facility data found in {self.data_dir}")
             root.destroy()
-            return
+            return None
         
         f_names = sorted(df['name'].unique().tolist())
         name_to_id = df.set_index('name')['id'].to_dict()
@@ -194,3 +194,5 @@ class RoutingManager:
         
         ttk.Button(root, text="Draw Route", command=submit).pack(pady=20)
         ttk.Button(root, text="Clear Map", command=self.clear_all_routes).pack()
+
+        return root

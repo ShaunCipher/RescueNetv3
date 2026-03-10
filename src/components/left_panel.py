@@ -340,4 +340,9 @@ class LeftPanel(ctk.CTkFrame):
 
     def open_routing(self):
         if self.workspace and hasattr(self.workspace, 'routing_engine'):
-            self.workspace.routing_engine.open_route_window(self.workspace.all_data)
+            if hasattr(self, 'routing_window') and self.routing_window.winfo_exists():
+                self.routing_window.focus_force()
+                self.routing_window.lift()
+                return
+            self.routing_window = self.workspace.routing_engine.open_route_window(self.workspace.all_data)
+            
