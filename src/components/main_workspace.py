@@ -5,6 +5,7 @@ import matplotlib.image as mpimg
 import os
 import pandas as pd
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from time import perf_counter
 
 from .terminal_panel import TerminalPanel
 from src.components.core.data_manager import DataManager 
@@ -16,6 +17,7 @@ from src.components.core.accident_manager import AccidentManager
 
 class MainWorkspace(ctk.CTkFrame):
     def __init__(self, master, **kwargs):
+        start = perf_counter()
         super().__init__(master, corner_radius=0, fg_color="transparent", **kwargs)
 
         # 1. Load Data
@@ -61,6 +63,8 @@ class MainWorkspace(ctk.CTkFrame):
         self.refresh_accident_plot()  # Plots only the Red X Accidents
         
         self.fig.canvas.mpl_connect("motion_notify_event", self.on_hover)
+        end = perf_counter()
+        self.terminal.log(f"MainWorkspace initialized in {end - start:.2f} seconds.")
 
     def setup_map(self):
         plt.style.use('dark_background')
