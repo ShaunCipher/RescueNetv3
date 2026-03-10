@@ -67,6 +67,7 @@ class MainWorkspace(ctk.CTkFrame):
         self.terminal.log(f"MainWorkspace initialized in {end - start:.2f} seconds.")
 
     def setup_map(self):
+        start = perf_counter()
         plt.style.use('dark_background')
         self.fig, self.ax = plt.subplots(figsize=(10, 8), dpi=100)
         self.fig.patch.set_facecolor('#212121')
@@ -94,6 +95,8 @@ class MainWorkspace(ctk.CTkFrame):
 
         self.canvas_widget.pack(fill="both", expand=True)
         self.setup_custom_controls()
+        end = perf_counter()
+        self.terminal.log(f"Map setup completed in {end - start:.2f} seconds.")
 
     def setup_custom_controls(self):
         self.button_frame = ctk.CTkFrame(self.work_area, fg_color="transparent")
@@ -110,6 +113,7 @@ class MainWorkspace(ctk.CTkFrame):
 
     def plot_facilities(self):
         """Initial plot of infrastructure. STRICTLY excludes accident nodes."""
+        start = perf_counter()
         color_map = get_colors()
         
         # We ensure we only plot categories defined in map_utils, excluding 'accident'
@@ -127,6 +131,8 @@ class MainWorkspace(ctk.CTkFrame):
                     picker=True, pickradius=5
                 )
         self.canvas.draw()
+        end = perf_counter()
+        self.terminal.log(f"Facilities plotted in {end - start:.2f} seconds.")
 
     def refresh_accident_plot(self):
         """Clears and redraws the specialized Accident layer."""
