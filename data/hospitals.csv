@@ -1,4 +1,4 @@
-id,name,category,capacity,occupants ,operating_hours,status,is_open
+id,name,category,capacity,occupants,operating_hours,status,is_open
 364,Hospital_1,Hospital,250,0,00:00-23:59,Available,TRUE
 368,Hospital_2,Hospital,500,0,00:00-23:59,Available,TRUE
 374,Hospital_3,Hospital,300,0,00:00-23:59,Available,TRUE

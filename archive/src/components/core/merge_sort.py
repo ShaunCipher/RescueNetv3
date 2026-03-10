@@ -38,7 +38,7 @@ def merge(left, right, key):
     result.extend(right[j:])
     return result
 
-def sort_facilities_by_distance(master_registry, node_map, accident_coords):
+def sort_facilities_by_distance(master_registry, node_map, accident_coords, edges_df=None, accident_node_id=None):
     """
     Sorts facilities by distance from accident location using merge sort.
     Groups facilities by category and sorts each category by distance.
@@ -47,16 +47,29 @@ def sort_facilities_by_distance(master_registry, node_map, accident_coords):
         master_registry: Dictionary of facility data
         node_map: Dictionary mapping node IDs to coordinates
         accident_coords: Tuple (x, y) of accident location
+        edges_df: DataFrame with columns ['from', 'to', 'weight'] for road network distance
+        accident_node_id: Node ID of the accident (for road network calculations)
 
     Returns:
         Dictionary with categories as keys and sorted facility lists as values
     """
-    import math
+    import networkx as nx
 
     ax, ay = accident_coords
     facilities_by_category = {}
 
-    print(f"DEBUG: Available Facilities: {len(master_registry)}")
+
+
+    # Build NetworkX graph if edges_df is provided
+    G = None
+    if edges_df is not None:
+        G = nx.Graph()
+        try:
+            for _, row in edges_df.iterrows():
+                G.add_edge(int(row['from']), int(row['to']), weight=float(row['weight']))
+        except Exception as e:
+            print(f"Warning: Could not build road network graph: {e}")
+            G = None
 
     for item_id, data in master_registry.items():
         facility_copy = data.copy()
@@ -67,8 +80,20 @@ def sort_facilities_by_distance(master_registry, node_map, accident_coords):
         else:
             continue  # Skip if coordinates not found
 
-        # Calculate Euclidean Distance
-        dist = math.sqrt((fx - ax)**2 + (fy - ay)**2)
+        # Calculate distance using road network if available
+        if G is not None and accident_node_id is not None:
+            try:
+                # Use shortest path distance along road network
+                dist = nx.shortest_path_length(G, source=int(accident_node_id), target=int(item_id), weight='weight')
+            except (nx.NetworkXNoPath, nx.NodeNotFound):
+                # Fallback to Euclidean distance if no path exists
+                import math
+                dist = math.sqrt((fx - ax)**2 + (fy - ay)**2)
+        else:
+            # Fallback to Euclidean distance if edges_df not provided
+            import math
+            dist = math.sqrt((fx - ax)**2 + (fy - ay)**2)
+
         facility_copy['distance'] = round(dist, 2)
 
         # Group by category
