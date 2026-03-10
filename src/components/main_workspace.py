@@ -38,9 +38,6 @@ class MainWorkspace(ctk.CTkFrame):
 
         # 3. Setup Map
         self.setup_map()
-            # At the end of MainWorkspace.setup_map
-        self.canvas_widget.bind("<Button-1>", lambda e: self.canvas_widget.focus_set())
-        self.canvas.mpl_connect('button_press_event', lambda e: self.canvas_widget.focus_set())
         
         # 4. Initialize Engines (In order)
         self.routing_engine = RoutingManager(
@@ -57,17 +54,15 @@ class MainWorkspace(ctk.CTkFrame):
             categories=get_category_order(), plots=self.plots, canvas=self.canvas
         )
 
-        # Initializing Inspector with workspace reference for routing/popups
         self.inspector = NodeInspector(
             self.fig, self.ax, self.plots, self.all_data, self.master_registry, workspace=self 
         )
 
         # 5. Plot Layers
-        self.plot_facilities()        # Plots Roads, Hospitals, etc.
-        self.refresh_accident_plot()  # Plots Accidents with Picking enabled
+        self.plot_facilities()        # Plots Roads, Hospitals, etc. (Excluding Accidents)
+        self.refresh_accident_plot()  # Plots only the Red X Accidents
         
         self.fig.canvas.mpl_connect("motion_notify_event", self.on_hover)
-        
         end = perf_counter()
         self.terminal.log(f"MainWorkspace initialized in {end - start:.2f} seconds.")
 
@@ -114,8 +109,10 @@ class MainWorkspace(ctk.CTkFrame):
                           fg_color="#333333", hover_color="#444444", command=cmd).pack(side="left", padx=5)
 
     def plot_facilities(self):
-        """Initial plot of infrastructure."""
+        """Initial plot of infrastructure. STRICTLY excludes accident nodes."""
         color_map = get_colors()
+        
+        # We ensure we only plot categories defined in map_utils, excluding 'accident'
         for cat in get_category_order():
             cat_lower = cat.lower()
             if cat_lower == 'accident': 
@@ -132,7 +129,8 @@ class MainWorkspace(ctk.CTkFrame):
         self.canvas.draw()
 
     def refresh_accident_plot(self):
-        """Clears and redraws Accidents. Now includes picker=True for inspection."""
+        """Clears and redraws the specialized Accident layer."""
+        # 1. Remove existing plot if it exists
         if 'accident' in self.plots:
             try:
                 self.plots['accident'].remove()
@@ -140,18 +138,18 @@ class MainWorkspace(ctk.CTkFrame):
                 pass
             del self.plots['accident']
 
+        # 2. Load fresh data from accidents.csv
         acc_path = os.path.join('data', 'accidents.csv')
         if os.path.exists(acc_path):
             try:
                 df = pd.read_csv(acc_path)
+                # Only plot if there are actual rows
                 if not df.empty:
                     self.plots['accident'] = self.ax.scatter(
                         df['x'], df['y'], 
                         c='#e74c3c', s=200, marker='X', 
                         edgecolors='white', linewidth=2, 
-                        zorder=30, label='Accidents',
-                        picker=True,     # Enabled for NodeInspector
-                        pickradius=12    # Forgiving click area for the X
+                        zorder=30, label='Accidents'
                     )
                 self.canvas.draw_idle()
             except Exception as e:
@@ -159,17 +157,6 @@ class MainWorkspace(ctk.CTkFrame):
 
     def on_hover(self, event):
         if event.inaxes != self.ax: return
-
-        # --- LIVE COORDINATE UPDATE ---
-        # Reach up to the App instance via the PanedWindow to find the right_panel
-        try:
-            app = self.master.master 
-            if hasattr(app, 'right_panel'):
-                app.right_panel.update_coords(event.xdata, event.ydata)
-        except:
-            pass
-        # ------------------------------
-
         vis = self.hover_ann.get_visible()
         found = False
 
@@ -189,10 +176,8 @@ class MainWorkspace(ctk.CTkFrame):
 
         if not found and vis:
             self.hover_ann.set_visible(False)
-        
         if found or (not found and vis):
             self.canvas.draw_idle()
 
     def log_analysis(self, message):
         self.terminal.log(message)
-    

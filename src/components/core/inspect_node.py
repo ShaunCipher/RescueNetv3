@@ -1,5 +1,6 @@
 import matplotlib.colors as mcolors
 from src.components.core import map_utils
+import __main__
 import os
 import pandas as pd
 
@@ -48,17 +49,15 @@ class NodeInspector:
         self.plots = plots
         self.all_data = all_data
         self.master_registry = master_registry
-        self.workspace = workspace  # Reference to MainWorkspace for routing
+        self.workspace = workspace
         
         self.active_popups = {}
         self.draggable_instances = {}
         self.color_map = map_utils.get_colors()
 
-        # Connect the Matplotlib pick event
         self.fig.canvas.mpl_connect('pick_event', self.on_pick)
 
     def _lighten_color(self, color, amount=0.4):
-        """Creates a lighter background color for the popup box."""
         try:
             c = mcolors.to_rgb(color)
             return mcolors.to_hex([1 - amount * (1 - x) for x in c])
@@ -76,7 +75,6 @@ class NodeInspector:
         
         if category.lower() == 'accident':
             try:
-                # Read the actual CSV to get the most recent data
                 acc_path = os.path.join('data', 'accidents.csv')
                 df = pd.read_csv(acc_path)
                 row = df.iloc[index]
@@ -86,21 +84,16 @@ class NodeInspector:
                 print(f"Inspector Error: {e}")
                 return
         else:
-            # Logic for static facilities
             category_group = self.all_data[self.all_data['category'] == category.lower()]
             if index >= len(category_group): return
             row = category_group.iloc[index]
             node_id = int(row.get('id', 0))
-            # Use registry to get full data (capacity/staff)
             data = self.master_registry.get(node_id, row.to_dict())
 
-        # Toggle the popup logic
         if node_id in self.active_popups:
             self._close_popup(node_id)
         else:
             self._create_popup(node_id, category, data)
-            
-            # Trigger Routing Engine if an accident is inspected
             if category.lower() == 'accident' and self.workspace:
                 self.workspace.routing_engine.find_nearest(node_id, 'hospital')
                 self.workspace.routing_engine.find_nearest(node_id, 'firestation')
@@ -108,7 +101,6 @@ class NodeInspector:
         self.fig.canvas.draw_idle()
 
     def _close_popup(self, node_id):
-        """Removes the annotation and disconnects drag events."""
         if node_id in self.active_popups:
             self.active_popups[node_id].remove()
             if node_id in self.draggable_instances:
@@ -117,7 +109,6 @@ class NodeInspector:
             del self.active_popups[node_id]
 
     def _create_popup(self, node_id, category, data):
-        """Generates the visual annotation bubble with dynamic headers."""
         name = data.get('name', 'Unknown')
         status = str(data.get('status', 'Available')).upper()
         x, y = float(data['x']), float(data['y'])
@@ -129,26 +120,22 @@ class NodeInspector:
             f"STATUS: {status}"
         ]
 
-        # Handle shelter/health facilities
         if 'capacity' in data:
             occ = data.get('occupants', data.get('occupants ', 0)) 
             cap = data.get('capacity', 0)
             info_lines.append(f"LOAD:   {occ} / {cap}")
 
-        # Handle emergency responders
         if 'number_of_staff' in data:
             present = data.get('staff_present', 0)
             total = data.get('number_of_staff', 0)
             info_lines.append(f"STAFF:  {present} / {total}")
 
-        # Handle accident specifics
         if category.lower() == 'accident':
             info_lines.append(f"VICTIMS: {data.get('num_victims', 0)}")
 
         info_text = "\n".join(info_lines)
         base_color = self.color_map.get(category.lower(), 'grey')
         
-        # Create the visual annotation
         ann = self.ax.annotate(
             info_text, xy=(x, y), xytext=(40, 40),
             textcoords="offset points", fontsize=9, fontweight='bold', family='monospace',
@@ -158,6 +145,5 @@ class NodeInspector:
             arrowprops=dict(arrowstyle="->", color=base_color)
         )
         
-        # Store instances to allow dragging and future removal
         self.active_popups[node_id] = ann
         self.draggable_instances[node_id] = DraggableAnnotation(ann)
