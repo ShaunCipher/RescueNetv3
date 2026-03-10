@@ -12,7 +12,6 @@ class LeftPanel(ctk.CTkFrame):
         self.base_dir = self.get_root_path()
         self.data_dir = os.path.join(self.base_dir, "data")
         
-        print(f"DEBUG: Looking for CSVs in: {self.data_dir}")
         
         self.node_map = self.load_nodes("nodes.csv")
         self.accident_data = self.load_accidents("accidents.csv")

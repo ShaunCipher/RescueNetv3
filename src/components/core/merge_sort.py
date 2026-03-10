@@ -58,7 +58,7 @@ def sort_facilities_by_distance(master_registry, node_map, accident_coords, edge
     ax, ay = accident_coords
     facilities_by_category = {}
 
-    print(f"DEBUG: Available Facilities: {len(master_registry)}")
+
 
     # Build NetworkX graph if edges_df is provided
     G = None
