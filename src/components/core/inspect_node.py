@@ -1,6 +1,7 @@
 import matplotlib.colors as mcolors
 from src.components.core import map_utils
-import __main__
+import os
+import pandas as pd
 
 class DraggableAnnotation:
     """Handles the click-and-drag functionality for map popups."""
@@ -66,7 +67,6 @@ class NodeInspector:
 
     def on_pick(self, event):
         artist = event.artist
-        # Identify which category plot was clicked
         category = next((cat for cat, p in self.plots.items() if p == artist), None)
         
         if not category:
@@ -74,41 +74,47 @@ class NodeInspector:
 
         index = event.ind[0]
         
-        # 1. Extract data based on category
         if category.lower() == 'accident':
             try:
-                # Assuming rep_mgr is available in __main__ for live accident data
-                row = __main__.rep_mgr.current_accidents_df.iloc[index]
+                # Read the actual CSV to get the most recent data
+                acc_path = os.path.join('data', 'accidents.csv')
+                df = pd.read_csv(acc_path)
+                row = df.iloc[index]
                 node_id = int(row.get('id', 0))
                 data = row.to_dict()
-            except (AttributeError, IndexError):
+            except Exception as e:
+                print(f"Inspector Error: {e}")
                 return
         else:
-            # Filter all_data to find the specific node for static facilities
+            # Logic for static facilities
             category_group = self.all_data[self.all_data['category'] == category.lower()]
-            if index >= len(category_group): 
-                return
+            if index >= len(category_group): return
             row = category_group.iloc[index]
             node_id = int(row.get('id', 0))
-            # Use registry to get full data (including capacity/staff columns)
+            # Use registry to get full data (capacity/staff)
             data = self.master_registry.get(node_id, row.to_dict())
 
-        # 2. Toggle logic (Open/Close)
+        # Toggle the popup logic
+        if node_id in self.active_popups:
+            self._close_popup(node_id)
+        else:
+            self._create_popup(node_id, category, data)
+            
+            # Trigger Routing Engine if an accident is inspected
+            if category.lower() == 'accident' and self.workspace:
+                self.workspace.routing_engine.find_nearest(node_id, 'hospital')
+                self.workspace.routing_engine.find_nearest(node_id, 'firestation')
+
+        self.fig.canvas.draw_idle()
+
+    def _close_popup(self, node_id):
+        """Removes the annotation and disconnects drag events."""
         if node_id in self.active_popups:
             self.active_popups[node_id].remove()
             if node_id in self.draggable_instances:
                 self.draggable_instances[node_id].disconnect()
                 del self.draggable_instances[node_id]
             del self.active_popups[node_id]
-        else:
-            self._create_popup(node_id, category, data)
-            
-            # 3. Trigger Routing if an accident is inspected
-            if category.lower() == 'accident' and self.workspace:
-                self.workspace.routing_engine.find_nearest(node_id, 'hospital')
-                self.workspace.routing_engine.find_nearest(node_id, 'firestation')
-        
-        self.fig.canvas.draw_idle()
 
     def _create_popup(self, node_id, category, data):
         """Generates the visual annotation bubble with dynamic headers."""
@@ -123,13 +129,13 @@ class NodeInspector:
             f"STATUS: {status}"
         ]
 
-        # Handle shelter/health facilities (Hospital, Church, School)
+        # Handle shelter/health facilities
         if 'capacity' in data:
-            occ = data.get('occupants', data.get('occupants ', 0)) # Handles trailing space
+            occ = data.get('occupants', data.get('occupants ', 0)) 
             cap = data.get('capacity', 0)
             info_lines.append(f"LOAD:   {occ} / {cap}")
 
-        # Handle emergency responders (Police, Firestation, DRRM)
+        # Handle emergency responders
         if 'number_of_staff' in data:
             present = data.get('staff_present', 0)
             total = data.get('number_of_staff', 0)
@@ -142,7 +148,7 @@ class NodeInspector:
         info_text = "\n".join(info_lines)
         base_color = self.color_map.get(category.lower(), 'grey')
         
-        # Create Annotation
+        # Create the visual annotation
         ann = self.ax.annotate(
             info_text, xy=(x, y), xytext=(40, 40),
             textcoords="offset points", fontsize=9, fontweight='bold', family='monospace',
@@ -152,6 +158,6 @@ class NodeInspector:
             arrowprops=dict(arrowstyle="->", color=base_color)
         )
         
-        # Store for management
+        # Store instances to allow dragging and future removal
         self.active_popups[node_id] = ann
         self.draggable_instances[node_id] = DraggableAnnotation(ann)

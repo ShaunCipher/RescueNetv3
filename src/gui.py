@@ -99,10 +99,13 @@ class App(ctk.CTk):
             self.left_panel.setup_filters()
 
         # FIXED: Passing the accident_manager here to solve the TypeError
+        # FIXED CALL in gui.py
         self.right_panel = RightPanel(
             self.paned_window, 
-            toggle_cmd=self.toggle_right,
-            accident_manager=self.acc_manager
+            toggle_cmd=self.toggle_right,        # This is handled by kwargs.pop
+            accident_manager=self.acc_manager,   # For future use
+            ax=self.center_view.ax,             # Pass the map axis
+            fig=self.center_view.fig            # Pass the map figure
         )
 
         # Link right panel back into accident_manager so it auto-refreshes on changes
