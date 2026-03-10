@@ -57,9 +57,6 @@ class LeftPanel(ctk.CTkFrame):
         self.action_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.action_frame.pack(fill="x", padx=10, pady=20)
 
-        
-        # ---------------------------
-
         # Existing Sort Button
         self.sort_btn = ctk.CTkButton(
             self.action_frame, text="Sort Facilities (Merge Sort)", 
@@ -69,24 +66,14 @@ class LeftPanel(ctk.CTkFrame):
         self.sort_btn.pack(fill="x", padx=10, pady=(0, 10))
 
         self.route_btn = ctk.CTkButton(
-
             self.action_frame,
-
             text="Route Facilities",
-
             height=40,
-
             fg_color="#1f538d",
-
             hover_color="#14375e",
-
             command=self.open_routing
-
         )
-
         self.route_btn.pack(fill="x", padx=10)
-
-
 
     # --- TOGGLE LOGIC ---
 
@@ -100,8 +87,6 @@ class LeftPanel(ctk.CTkFrame):
 
         self.is_facility_open = not self.is_facility_open
 
-
-
     def toggle_status_menu(self):
         if self.is_status_open:
             self.status_dropdown_container.pack_forget()
@@ -110,8 +95,6 @@ class LeftPanel(ctk.CTkFrame):
             self.status_dropdown_container.pack(fill="x", pady=(5, 0))
             self.status_toggle_btn.configure(text="▼ Check Facility Status")
         self.is_status_open = not self.is_status_open
-
-
 
     # --- INITIALIZATION ---
 
@@ -123,13 +106,9 @@ class LeftPanel(ctk.CTkFrame):
             status_cats = ["churches", "drrm", "firestations", "hospitals", "schools", "policestations"]
             self.workspace.status_manager.build_dropdown_ui(self.status_dropdown_container, status_cats)
 
-
-
     def get_root_path(self):
         """Returns the root directory of your repository."""
-        # This gets the directory of left_panel.py
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        # This goes up two levels to reach the project root
         return os.path.abspath(os.path.join(current_dir, '..', '..'))
 
     def load_nodes(self, filename):
@@ -141,7 +120,6 @@ class LeftPanel(ctk.CTkFrame):
             with open(file_path, 'r') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    # Explicitly convert the ID to a string to match registry keys
                     node_id = str(row['id']).strip() 
                     coords[node_id] = (float(row['x']), float(row['y']))
         except FileNotFoundError:
@@ -168,7 +146,7 @@ class LeftPanel(ctk.CTkFrame):
         active_id = getattr(self.workspace, 'current_accident_id', None)
         if active_id and str(active_id) in self.node_map:
             return self.node_map[str(active_id)]
-        return (0, 0)  # Default if no accident selected
+        return (0, 0)
 
     def open_accident_selection(self, parent_popup):
         """Opens a window to select an accident from accidents.csv."""
@@ -176,23 +154,20 @@ class LeftPanel(ctk.CTkFrame):
         selector.title("Pick an Accident")
         selector.geometry("300x400")
 
-        # Make this window modal (blocks interaction with parent)
-        selector.transient(parent_popup)  # Make it a child of parent
-        selector.grab_set()  # Grab all events
-        selector.attributes("-topmost", True)  # Ensure it's on top
-        selector.focus_force()  # Force focus
-        selector.lift()  # Bring to front
+        selector.transient(parent_popup)
+        selector.grab_set()
+        selector.attributes("-topmost", True)
+        selector.focus_force()
+        selector.lift()
 
         scroll = ctk.CTkScrollableFrame(selector, width=260, height=300)
         scroll.pack(padx=10, pady=10)
 
-        # Uses the same base_path strategy
         file_path = os.path.join(self.data_dir, "accidents.csv")
         try:
             with open(file_path, 'r') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    # close the selector ourselves; perform_sort no longer handles it
                     btn = ctk.CTkButton(
                         scroll, text=f"ID: {row['id']} - {row['name']}",
                         command=lambda r=row: (self.perform_sort(r['id']), selector.destroy())
@@ -202,29 +177,19 @@ class LeftPanel(ctk.CTkFrame):
             ctk.CTkLabel(scroll, text="accidents.csv not found").pack()
 
     def perform_sort(self, acc_id, selector_popup=None):
-        """Performs the merge sort and updates the results window, grouped by category.
-
-        The optional ``selector_popup`` argument used to exist for the separate
-        accident chooser window.  It is no longer destroyed here because the
-        popup passed by the dropdown is the main results window; closing it
-        would invalidate ``results_scroll`` and lead to a TclError.
-        """
         if not acc_id:
-            # nothing to sort; this can happen if combo box passes an empty
-            # string when the selection is cleared.
             return
         self.workspace.current_accident_id = acc_id
 
-        # 1. Double check that self.results_scroll exists
         if not hasattr(self, 'results_scroll'):
             print("Error: Results window not initialized.")
             return
 
-        # 3. Get the accident location and sort facilities
         accident_coords = self.get_accident_coordinates()
         edges_df = None
         if self.workspace and hasattr(self.workspace, 'data_engine'):
             edges_df = self.workspace.data_engine.edges_df
+        
         facilities_by_category = sort_facilities_by_distance(
             self.workspace.master_registry,
             self.node_map,
@@ -233,29 +198,26 @@ class LeftPanel(ctk.CTkFrame):
             accident_node_id=acc_id
         )
 
-        # Store categorized and uncategorized versions
+        # --- REMOVE UNKNOWN CATEGORY FROM RESULTS ---
+        if "Unknown" in facilities_by_category:
+            del facilities_by_category["Unknown"]
+
         self.current_categorized_facilities = facilities_by_category
         self.current_flattened_facilities = self._flatten_and_sort_facilities(facilities_by_category)
         self.current_accident_id = acc_id
         self.current_accident_data = self.accident_data.get(str(acc_id), {})
 
-        # Update filter dropdown with available categories
         self._update_filter_dropdown(facilities_by_category)
-
-        # Update display based on current filter
         self._update_results_display()
 
     def _flatten_and_sort_facilities(self, facilities_by_category):
-        """Flattens categorized facilities into a single sorted list by distance."""
         flattened = []
         for category, facilities in facilities_by_category.items():
             flattened.extend(facilities)
-        # Sort by distance
         flattened.sort(key=lambda f: float(f.get('distance', 0)))
         return flattened
 
     def _update_filter_dropdown(self, facilities_by_category):
-        """Updates the filter dropdown with 'All' options and individual categories."""
         categories = sorted(facilities_by_category.keys())
         filter_options = ["All (Categorized)", "All (Uncategorized)"] + categories
         self.filter_dropdown.configure(values=filter_options)
@@ -263,32 +225,21 @@ class LeftPanel(ctk.CTkFrame):
         self.current_filter_mode = "All"
 
     def _update_results_display(self):
-        """Updates the results display based on the selected filter."""
-        # 2. Clear previous results
         for widget in self.results_scroll.winfo_children():
             widget.destroy()
 
-        # Get selected filter mode
         filter_mode = getattr(self, 'current_filter_mode', 'All')
-
-        # Determine selected accident name (for display)
         acc_row = self.current_accident_data
         accident_name = acc_row.get('name', 'Unknown Accident')
         acc_id = self.current_accident_id
 
-        # Build a description of needed facility types
         needs = []
-        if acc_row.get('need_medical') in ('1', 'True', 'true'):
-            needs.append('Medical')
-        if acc_row.get('need_police') in ('1', 'True', 'true'):
-            needs.append('Police')
-        if acc_row.get('need_firestation') in ('1', 'True', 'true'):
-            needs.append('Firestation')
-        if acc_row.get('need_evac') in ('1', 'True', 'true'):
-            needs.append('Evacuation')
+        if acc_row.get('need_medical') in ('1', 'True', 'true'): needs.append('Medical')
+        if acc_row.get('need_police') in ('1', 'True', 'true'): needs.append('Police')
+        if acc_row.get('need_firestation') in ('1', 'True', 'true'): needs.append('Firestation')
+        if acc_row.get('need_evac') in ('1', 'True', 'true'): needs.append('Evacuation')
         needs_text = ', '.join(needs) if needs else 'None'
 
-        # Insert a heading showing which accident was used for sorting
         header_label = ctk.CTkLabel(
             self.results_scroll,
             text=f"Accident: {accident_name} (ID {acc_id}) | Needs: {needs_text}",
@@ -298,79 +249,36 @@ class LeftPanel(ctk.CTkFrame):
         )
         header_label.pack(fill="x", padx=10, pady=(5, 10))
 
-        # 4. Display sorted facilities based on filter
         if filter_mode == 'All':
-            # Display with categories
             for category in sorted(self.current_categorized_facilities.keys()):
                 sorted_facilities = self.current_categorized_facilities[category]
-
-                # Add category header
-                header = ctk.CTkLabel(
-                    self.results_scroll,
-                    text=f"━━ {category.upper()} ━━",
-                    text_color="#d35400",
-                    font=("Arial", 12, "bold"),
-                    anchor="w"
-                )
+                header = ctk.CTkLabel(self.results_scroll, text=f"━━ {category.upper()} ━━", text_color="#d35400", font=("Arial", 12, "bold"), anchor="w")
                 header.pack(fill="x", padx=10, pady=(15, 5))
-
-                # Add facilities under this category
                 for i, facility in enumerate(sorted_facilities):
-                    name = facility.get('name', 'Unknown')
-                    distance = facility.get('distance', 0)
-                    info = f"  {i+1}. {name} — {distance} km"
+                    info = f"  {i+1}. {facility.get('name', 'Unknown')} — {facility.get('distance', 0)} km"
                     ctk.CTkLabel(self.results_scroll, text=info, anchor="w").pack(fill="x", padx=10, pady=2)
         elif filter_mode == 'Uncategorized':
-            # Display as flat list without categories
             for i, facility in enumerate(self.current_flattened_facilities):
-                name = facility.get('name', 'Unknown')
-                distance = facility.get('distance', 0)
-                info = f"{i+1}. {name} — {distance} km"
+                info = f"{i+1}. {facility.get('name', 'Unknown')} — {facility.get('distance', 0)} km"
                 ctk.CTkLabel(self.results_scroll, text=info, anchor="w").pack(fill="x", padx=10, pady=2)
         else:
-            # Display only the selected category
             if filter_mode in self.current_categorized_facilities:
                 sorted_facilities = self.current_categorized_facilities[filter_mode]
-                
-                # Add category header
-                header = ctk.CTkLabel(
-                    self.results_scroll,
-                    text=f"━━ {filter_mode.upper()} ━━",
-                    text_color="#d35400",
-                    font=("Arial", 12, "bold"),
-                    anchor="w"
-                )
+                header = ctk.CTkLabel(self.results_scroll, text=f"━━ {filter_mode.upper()} ━━", text_color="#d35400", font=("Arial", 12, "bold"), anchor="w")
                 header.pack(fill="x", padx=10, pady=(15, 5))
-
-                # Add facilities under this category
                 for i, facility in enumerate(sorted_facilities):
-                    name = facility.get('name', '')
-                    distance = facility.get('distance', 0)
-                    info = f"  {i+1}. {name} — {distance} km"
+                    info = f"  {i+1}. {facility.get('name', '')} — {facility.get('distance', 0)} km"
                     ctk.CTkLabel(self.results_scroll, text=info, anchor="w").pack(fill="x", padx=10, pady=2)
-            else:
-                # If category doesn't exist, show message
-                msg = ctk.CTkLabel(
-                    self.results_scroll,
-                    text="No facilities found for this category.",
-                    text_color="#e74c3c",
-                    font=("Arial", 12)
-                )
-                msg.pack(pady=20)
 
     def set_accident(self, acc_id, popup):
-        """Saves selected accident ID to workspace and closes popup."""
         if self.workspace:
             self.workspace.current_accident_id = acc_id
-            print(f"Selected Accident: {acc_id}")
         popup.destroy()
 
     def open_sorted_view(self):
-        """Initializes the window with a selection button."""
         if not self.workspace or not hasattr(self.workspace, 'master_registry'):
             return
 
-        # Check if window already exists and is still open
         if hasattr(self, 'sorted_view_window') and self.sorted_view_window.winfo_exists():
             self.sorted_view_window.focus_force()
             self.sorted_view_window.lift()
@@ -379,17 +287,14 @@ class LeftPanel(ctk.CTkFrame):
         popup = ctk.CTkToplevel(self)
         popup.title("Facilities Sorted by Distance")
         popup.geometry("500x550")
-        popup.attributes("-topmost", True)  # Make window appear on top
-        popup.focus_force()  # Force focus to this window
-        popup.lift()  # Bring window to front
+        popup.attributes("-topmost", True)
+        popup.focus_force()
+        popup.lift()
         
-        # Store reference to prevent duplicate windows
         self.sorted_view_window = popup
         
         ctk.CTkLabel(popup, text="Sort Facilities (Merge Sort)", font=("Arial", 18, "bold")).pack(pady=10)
 
-        # Dropdown to choose accident directly
-        # Prepare display values with ID and name
         self.dropdown_map = {}
         display_values = []
         for aid, row in self.accident_data.items():
@@ -403,9 +308,9 @@ class LeftPanel(ctk.CTkFrame):
             width=350,
             command=lambda sel: self.perform_sort(self.dropdown_map.get(sel, ''))
         )
+        self.accident_dropdown.set("") # --- BLANK BY DEFAULT ---
         self.accident_dropdown.pack(pady=10)
 
-        # Filter dropdown to switch between categorized and uncategorized view
         filter_label = ctk.CTkLabel(popup, text="Filter View:", font=("Arial", 12))
         filter_label.pack(pady=(10, 5))
 
@@ -416,32 +321,23 @@ class LeftPanel(ctk.CTkFrame):
             width=350,
             command=self._on_filter_change
         )
-        self.filter_dropdown.set("All (Categorized)")
+        self.filter_dropdown.set("") # --- BLANK BY DEFAULT ---
         self.filter_dropdown.pack(pady=(5, 10))
 
-        # This will hold the results after the user picks an accident
         self.results_scroll = ctk.CTkScrollableFrame(popup, width=460, height=400)
         self.results_scroll.pack(padx=20, pady=10, fill="both", expand=True)
 
     def _on_filter_change(self, selection):
-        """Handles filter dropdown changes."""
         if selection == "All (Categorized)":
             self.current_filter_mode = "All"
         elif selection == "All (Uncategorized)":
             self.current_filter_mode = "Uncategorized"
         else:
-            # It's a category name
             self.current_filter_mode = selection
         
-        # Update display if we have results
         if hasattr(self, 'current_categorized_facilities'):
             self._update_results_display()
 
-
-
     def open_routing(self):
-
         if self.workspace and hasattr(self.workspace, 'routing_engine'):
-
             self.workspace.routing_engine.open_route_window(self.workspace.all_data)
-
