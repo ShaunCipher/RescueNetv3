@@ -1,92 +1,108 @@
 import customtkinter as ctk
+import os
+import csv
+from src.components.core.merge_sort import merge_sort, sort_facilities_by_distance
 
 class LeftPanel(ctk.CTkFrame):
     def __init__(self, master, toggle_cmd, workspace=None, **kwargs):
         super().__init__(master, width=250, corner_radius=0, fg_color="#2b2b2b", **kwargs)
         self.workspace = workspace
         
-        base_dir = r"C:\Users\milca\OneDrive\Documents\GitHub\RescueNetv2.1\RescueNetv3"
-        self.data_dir = os.path.join(base_dir, "data")
+        # Use relative path from project root
+        self.base_dir = self.get_root_path()
+        self.data_dir = os.path.join(self.base_dir, "data")
         
         print(f"DEBUG: Looking for CSVs in: {self.data_dir}")
         
         self.node_map = self.load_nodes("nodes.csv")
+        self.accident_data = self.load_accidents("accidents.csv")
 
         # --- 1. CLOSE BUTTON ---
-        # Positioned to the right of the panel to allow users to hide the sidebar
         self.close_btn = ctk.CTkButton(
-            self, text="<", width=20, height=60, 
+            self, text="<", width=20, height=60,
             fg_color="#3d3d3d", command=toggle_cmd
         )
         self.close_btn.place(relx=1.0, rely=0.5, anchor="e")
-        
-        # --- 2. FACILITY VISIBILITY SECTION (Dropdown 1) ---
+
+        # --- 2. FACILITY VISIBILITY SECTION ---
         self.facility_section = ctk.CTkFrame(self, fg_color="transparent")
         self.facility_section.pack(fill="x", padx=10, pady=(20, 5))
 
         self.facility_toggle_btn = ctk.CTkButton(
-            self.facility_section, 
-            text="▼ Facility Visibility", 
-            height=35,
-            fg_color="#3d3d3d",
-            hover_color="#4d4d4d",
-            anchor="w",
-            command=self.toggle_facility_menu
+            self.facility_section, text="▼ Facility Visibility",
+            height=35, fg_color="#3d3d3d", hover_color="#4d4d4d",
+            anchor="w", command=self.toggle_facility_menu
         )
         self.facility_toggle_btn.pack(fill="x")
 
-        # Container for visibility checkboxes
         self.facility_dropdown_container = ctk.CTkFrame(self.facility_section, fg_color="#333333")
-        self.facility_dropdown_container.pack(fill="x", pady=(5, 0)) 
-        self.is_facility_open = True # Start open by default
+        self.facility_dropdown_container.pack(fill="x", pady=(5, 0))
+        self.is_facility_open = True
 
-        # --- 3. STATUS OVERLAYS SECTION (Dropdown 2) ---
+        # --- 3. STATUS OVERLAYS SECTION ---
         self.status_section = ctk.CTkFrame(self, fg_color="transparent")
         self.status_section.pack(fill="x", padx=10, pady=5)
 
         self.status_toggle_btn = ctk.CTkButton(
-            self.status_section, 
-            text="▶ Check Facility Status", 
-            height=35,
-            fg_color="#3d3d3d",
-            hover_color="#4d4d4d",
-            anchor="w",
-            command=self.toggle_status_menu
+            self.status_section, text="▶ Check Facility Status",
+            height=35, fg_color="#3d3d3d", hover_color="#4d4d4d",
+            anchor="w", command=self.toggle_status_menu
         )
         self.status_toggle_btn.pack(fill="x")
 
-        # Container for status checkboxes (starts hidden)
         self.status_dropdown_container = ctk.CTkFrame(self.status_section, fg_color="#333333")
         self.is_status_open = False
 
-        # --- 4. ACTIONS SECTION ---
+        # --- 4. ACTIONS SECTION (Modified) ---
         self.action_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.action_frame.pack(fill="x", padx=10, pady=20)
 
-        self.route_btn = ctk.CTkButton(
-            self.action_frame, 
-            text="Route Facilities", 
-            height=40,
-            fg_color="#1f538d",
-            hover_color="#14375e",
-            command=self.open_routing
+        
+        # ---------------------------
+
+        # Existing Sort Button
+        self.sort_btn = ctk.CTkButton(
+            self.action_frame, text="Sort Facilities (Merge Sort)", 
+            height=40, fg_color="#28a745", hover_color="#218838",
+            command=self.open_sorted_view
         )
+        self.sort_btn.pack(fill="x", padx=10, pady=(0, 10))
+
+        self.route_btn = ctk.CTkButton(
+
+            self.action_frame,
+
+            text="Route Facilities",
+
+            height=40,
+
+            fg_color="#1f538d",
+
+            hover_color="#14375e",
+
+            command=self.open_routing
+
+        )
+
         self.route_btn.pack(fill="x", padx=10)
+
+
 
     # --- TOGGLE LOGIC ---
 
     def toggle_facility_menu(self):
-        """Shows or hides the facility visibility checkboxes."""
         if self.is_facility_open:
             self.facility_dropdown_container.pack_forget()
             self.facility_toggle_btn.configure(text="▶ Facility Visibility")
         else:
             self.facility_dropdown_container.pack(fill="x", pady=(5, 0))
             self.facility_toggle_btn.configure(text="▼ Facility Visibility")
+
         self.is_facility_open = not self.is_facility_open
 
+
+
     def toggle_status_menu(self):
-        """Shows or hides the status overlay checkboxes."""
         if self.is_status_open:
             self.status_dropdown_container.pack_forget()
             self.status_toggle_btn.configure(text="▶ Check Facility Status")
@@ -95,20 +111,15 @@ class LeftPanel(ctk.CTkFrame):
             self.status_toggle_btn.configure(text="▼ Check Facility Status")
         self.is_status_open = not self.is_status_open
 
+
+
     # --- INITIALIZATION ---
 
     def setup_filters(self):
-        """
-        Populates both dropdown containers using their respective logic engines.
-        This is called from gui.py after components are initialized.
-        """
-        # 1. Populate Facility Visibility (FilterLogic)
         if self.workspace and hasattr(self.workspace, 'filter_engine'):
             self.workspace.filter_engine.build_dropdown_ui(self.facility_dropdown_container)
 
-        # 2. Populate Status Overlays (StatusManager)
         if self.workspace and hasattr(self.workspace, 'status_manager'):
-            # Categories match your CSV naming convention
             status_cats = ["churches", "drrm", "firestations", "hospitals", "schools", "policestations"]
             self.workspace.status_manager.build_dropdown_ui(self.status_dropdown_container, status_cats)
 
@@ -137,6 +148,21 @@ class LeftPanel(ctk.CTkFrame):
             print(f"CRITICAL: Cannot find {filename} at {file_path}")
         return coords
 
+    def load_accidents(self, filename):
+        """Loads accidents.csv and returns a dict keyed by ID."""
+        accidents = {}
+        file_path = os.path.join(self.data_dir, filename)
+        
+        try:
+            with open(file_path, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    acc_id = str(row['id']).strip()
+                    accidents[acc_id] = row
+        except FileNotFoundError:
+            print(f"CRITICAL: Cannot find {filename} at {file_path}")
+        return accidents
+
     def get_accident_coordinates(self):
         """Helper to get coordinates of the currently selected accident."""
         active_id = getattr(self.workspace, 'current_accident_id', None)
@@ -149,7 +175,14 @@ class LeftPanel(ctk.CTkFrame):
         selector = ctk.CTkToplevel(parent_popup)
         selector.title("Pick an Accident")
         selector.geometry("300x400")
-        
+
+        # Make this window modal (blocks interaction with parent)
+        selector.transient(parent_popup)  # Make it a child of parent
+        selector.grab_set()  # Grab all events
+        selector.attributes("-topmost", True)  # Ensure it's on top
+        selector.focus_force()  # Force focus
+        selector.lift()  # Bring to front
+
         scroll = ctk.CTkScrollableFrame(selector, width=260, height=300)
         scroll.pack(padx=10, pady=10)
 
@@ -159,18 +192,28 @@ class LeftPanel(ctk.CTkFrame):
             with open(file_path, 'r') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
+                    # close the selector ourselves; perform_sort no longer handles it
                     btn = ctk.CTkButton(
                         scroll, text=f"ID: {row['id']} - {row['name']}",
-                        command=lambda r=row: self.perform_sort(r['id'], selector)
+                        command=lambda r=row: (self.perform_sort(r['id']), selector.destroy())
                     )
                     btn.pack(fill="x", pady=2)
         except FileNotFoundError:
             ctk.CTkLabel(scroll, text="accidents.csv not found").pack()
 
-    def perform_sort(self, acc_id, selector_popup):
-        """Performs the merge sort and updates the results window, grouped by category."""
+    def perform_sort(self, acc_id, selector_popup=None):
+        """Performs the merge sort and updates the results window, grouped by category.
+
+        The optional ``selector_popup`` argument used to exist for the separate
+        accident chooser window.  It is no longer destroyed here because the
+        popup passed by the dropdown is the main results window; closing it
+        would invalidate ``results_scroll`` and lead to a TclError.
+        """
+        if not acc_id:
+            # nothing to sort; this can happen if combo box passes an empty
+            # string when the selection is cleared.
+            return
         self.workspace.current_accident_id = acc_id
-        selector_popup.destroy()
 
         # 1. Double check that self.results_scroll exists
         if not hasattr(self, 'results_scroll'):
@@ -184,11 +227,42 @@ class LeftPanel(ctk.CTkFrame):
 
         # 3. Get the accident location and sort facilities
         accident_coords = self.get_accident_coordinates()
+        edges_df = None
+        if self.workspace and hasattr(self.workspace, 'data_engine'):
+            edges_df = self.workspace.data_engine.edges_df
         facilities_by_category = sort_facilities_by_distance(
             self.workspace.master_registry,
             self.node_map,
-            accident_coords
+            accident_coords,
+            edges_df,
+            accident_node_id=acc_id
         )
+
+        # Determine selected accident name (for display)
+        acc_row = self.accident_data.get(str(acc_id), {})
+        accident_name = acc_row.get('name', 'Unknown Accident')
+
+        # Build a description of needed facility types
+        needs = []
+        if acc_row.get('need_medical') in ('1', 'True', 'true'):
+            needs.append('Medical')
+        if acc_row.get('need_police') in ('1', 'True', 'true'):
+            needs.append('Police')
+        if acc_row.get('need_firestation') in ('1', 'True', 'true'):
+            needs.append('Firestation')
+        if acc_row.get('need_evac') in ('1', 'True', 'true'):
+            needs.append('Evacuation')
+        needs_text = ', '.join(needs) if needs else 'None'
+
+        # Insert a heading showing which accident was used for sorting
+        header_label = ctk.CTkLabel(
+            self.results_scroll,
+            text=f"Accident: {accident_name} (ID {acc_id}) | Needs: {needs_text}",
+            text_color="#e74c3c",
+            font=("Arial", 14, "bold"),
+            anchor="w"
+        )
+        header_label.pack(fill="x", padx=10, pady=(5, 10))
 
         # 4. Display sorted facilities with headings
         for category in sorted(facilities_by_category.keys()):
@@ -226,16 +300,28 @@ class LeftPanel(ctk.CTkFrame):
         popup = ctk.CTkToplevel(self)
         popup.title("Facilities Sorted by Distance")
         popup.geometry("500x550")
+        popup.attributes("-topmost", True)  # Make window appear on top
+        popup.focus_force()  # Force focus to this window
+        popup.lift()  # Bring window to front
         
         ctk.CTkLabel(popup, text="Sort Facilities (Merge Sort)", font=("Arial", 18, "bold")).pack(pady=10)
 
-        # Button to trigger the accident selection popup
-        select_acc_btn = ctk.CTkButton(
-            popup, text="Select Accident", height=35,
-            fg_color="#d35400", hover_color="#a04000",
-            command=lambda: self.open_accident_selection(popup)
+        # Dropdown to choose accident directly
+        # Prepare display values with ID and name
+        self.dropdown_map = {}
+        display_values = []
+        for aid, row in self.accident_data.items():
+            label = f"{aid} - {row.get('name','') }"
+            display_values.append(label)
+            self.dropdown_map[label] = aid
+
+        self.accident_dropdown = ctk.CTkComboBox(
+            popup,
+            values=display_values,
+            width=350,
+            command=lambda sel: self.perform_sort(self.dropdown_map.get(sel, ''))
         )
-        select_acc_btn.pack(pady=10)
+        self.accident_dropdown.pack(pady=10)
 
         # This will hold the results after the user picks an accident
         self.results_scroll = ctk.CTkScrollableFrame(popup, width=460, height=400)
@@ -244,7 +330,8 @@ class LeftPanel(ctk.CTkFrame):
 
 
     def open_routing(self):
-        """Triggered by the Route Facilities button."""
+
         if self.workspace and hasattr(self.workspace, 'routing_engine'):
-            # Passes all_data to the routing window for processing
+
             self.workspace.routing_engine.open_route_window(self.workspace.all_data)
+
