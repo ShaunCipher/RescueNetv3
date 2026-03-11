@@ -219,7 +219,8 @@ class LeftPanel(ctk.CTkFrame):
             self.node_map,
             accident_coords,
             edges_df,
-            accident_node_id=acc_id
+            accident_node_id=acc_id,
+            workspace=self.workspace
         )
 
         if "Unknown" in facilities_by_category:
@@ -416,7 +417,8 @@ class LeftPanel(ctk.CTkFrame):
                     self.workspace.master_registry,
                     self.node_map,
                     acc_coords,
-                    target_dist
+                    target_dist,
+                    workspace=self.workspace
                 )
 
                 if match:

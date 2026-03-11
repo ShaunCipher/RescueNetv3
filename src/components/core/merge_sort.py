@@ -1,15 +1,40 @@
-import os
+﻿import os
 import math
 import pandas as pd
 import networkx as nx
+from time import perf_counter
 
-def merge_sort(arr, key):
+
+def merge_sort(arr, key, log_fn=None, label=None):
     """
-    Standard Merge Sort implementation.
+    Standard Merge Sort Time Measurement Implementation.
     Complexity: O(n log n)
+
+    This implementation measures total runtime on the outermost call only
+    and logs the duration via `log_fn` when given, otherwise prints to terminal.
+
     """
+    # --- 0. TIMING SETUP for outermost call ---
+    if not hasattr(merge_sort, "_merge_depth"):
+        merge_sort._merge_depth = 0
+
+    merge_sort._merge_depth += 1
+    if merge_sort._merge_depth == 1:
+        merge_sort._start_time = perf_counter()
     # --- 1. BASE CASE ---
     if len(arr) <= 1:
+        if merge_sort._merge_depth == 1:
+            elapsed = perf_counter() - merge_sort._start_time
+            label_text = f" of {label}" if label else ""
+            msg = f"merge_sort completed {len(arr)} elements{label_text} in {elapsed:.6f} seconds"
+            if log_fn:
+                log_fn(msg)
+            else:
+                print(msg)
+            del merge_sort._merge_depth
+            del merge_sort._start_time
+        else:
+            merge_sort._merge_depth -= 1
         return arr
 
     # --- 2. DIVIDE ---
@@ -18,11 +43,26 @@ def merge_sort(arr, key):
     right_half = arr[mid:]
 
     # --- 3. CONQUER ---
-    sorted_left = merge_sort(left_half, key)
-    sorted_right = merge_sort(right_half, key)
+    sorted_left = merge_sort(left_half, key, log_fn=log_fn)
+    sorted_right = merge_sort(right_half, key, log_fn=log_fn)
 
     # --- 4. COMBINE ---
-    return merge(sorted_left, sorted_right, key)
+    merged = merge(sorted_left, sorted_right, key)
+
+    if merge_sort._merge_depth == 1:
+        elapsed = perf_counter() - merge_sort._start_time
+        label_text = f" of {label}" if label else ""
+        msg = f"merge_sort completed {len(arr)} elements{label_text} in {elapsed:.6f} seconds"
+        if log_fn:
+            log_fn(msg)
+        else:
+            print(msg)
+        del merge_sort._merge_depth
+        del merge_sort._start_time
+    else:
+        merge_sort._merge_depth -= 1
+
+    return merged
 
 def merge(left, right, key):
     result = []
@@ -42,11 +82,18 @@ def merge(left, right, key):
     result.extend(right[j:])
     return result
 
-def sort_facilities_by_distance(master_registry, node_map, accident_coords, edges_df=None, accident_node_id=None):
+def sort_facilities_by_distance(master_registry, node_map, accident_coords, edges_df=None, accident_node_id=None, workspace=None):
     """
     Calculates distances (Road or Euclidean) and groups facilities by category.
     Filters out 'Unknown' categories to keep the UI clean.
+
+    If workspace with terminal logger is provided, timing messages are routed to the terminal.
     """
+    def _log(message):
+        if workspace and hasattr(workspace, 'terminal') and hasattr(workspace.terminal, 'log'):
+            workspace.terminal.log(message)
+        else:
+            print(message)
     # Build NetworkX graph for road distance if edge data is provided
     G = None
     if edges_df is not None:
@@ -102,6 +149,11 @@ def sort_facilities_by_distance(master_registry, node_map, accident_coords, edge
 
     # --- SORT: Apply merge sort to each category ---
     for category in facilities_by_category:
-        facilities_by_category[category] = merge_sort(facilities_by_category[category], key='distance')
+        facilities_by_category[category] = merge_sort(
+            facilities_by_category[category],
+            key='distance',
+            log_fn=_log,
+            label=category
+        )
 
     return facilities_by_category
