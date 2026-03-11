@@ -3,10 +3,9 @@ from src.components.editor_tool.editor_left_panel import EditorLeftPanel
 from src.components.editor_tool.workspace import Workspace
 
 class NetworkEditor(ctk.CTkToplevel):
-    # Change 'workspace_data' back to 'workspace' here
     def __init__(self, parent, workspace=None): 
         super().__init__(parent)
-        self.workspace = workspace # Store the passed workspace reference
+        self.workspace = workspace 
         self.title("RescueNet Road Network Editor")
         
         self.after(200, lambda: self.state('zoomed')) 
@@ -21,16 +20,17 @@ class NetworkEditor(ctk.CTkToplevel):
         self.main_container = ctk.CTkFrame(self, corner_radius=0)
         self.main_container.pack(fill="both", expand=True)
 
-        # 1. Left Panel
+        # --- STEP 1: INITIALIZE WORKSPACE FIRST ---
+        # We do this first so it exists when the Left Panel looks for it
+        self.editor_workspace = Workspace(self.main_container)
+        self.editor_workspace.pack(side="right", fill="both", expand=True)
+
+        # --- STEP 2: INITIALIZE LEFT PANEL SECOND ---
         self.left_panel = EditorLeftPanel(
             self.main_container, 
             toggle_cmd=self.toggle_sidebar
         )
         self.left_panel.pack(side="left", fill="y")
-
-        # 2. Workspace Area (The Matplotlib piece)
-        self.editor_workspace = Workspace(self.main_container)
-        self.editor_workspace.pack(side="left", fill="both", expand=True)
 
         self.protocol("WM_DELETE_WINDOW", self.close_editor)
 

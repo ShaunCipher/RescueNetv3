@@ -1,13 +1,13 @@
 import customtkinter as ctk
+from .edit_facilities import EditFacilities
 
-# Assuming EditorExitButton is in the same file or imported
 class EditorExitButton(ctk.CTkFrame):
     def __init__(self, parent, exit_command, **kwargs):
         super().__init__(parent, fg_color="transparent", **kwargs)
         self.exit_btn = ctk.CTkButton(
             self, 
             text="✕ Return to Dashboard", 
-            width=180, # Made slightly wider to fit the panel better
+            width=180,
             height=35,
             fg_color="#4a4a4a",
             hover_color="#5a5a5a",
@@ -34,9 +34,45 @@ class EditorLeftPanel(ctk.CTkFrame):
         self.close_btn.place(relx=1.0, rely=0.5, anchor="e")
 
         # --- EXIT BUTTON (Bottom Anchored) ---
-        # master.master refers back to the NetworkEditor instance
         self.exit_section = EditorExitButton(self, exit_command=master.master.close_editor)
         self.exit_section.pack(side="bottom", fill="x", pady=20)
+
+        # --- EDIT FACILITIES DROPDOWN SECTION ---
+        self.is_edit_open = False  # Default to closed
+        
+        self.edit_menu_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.edit_menu_frame.pack(fill="x", padx=10, pady=(20, 5))
+
+        self.edit_toggle_btn = ctk.CTkButton(
+            self.edit_menu_frame, 
+            text="▶ Edit Facilities",
+            height=35, 
+            fg_color="#3d3d3d", 
+            hover_color="#4d4d4d",
+            anchor="w", 
+            command=self.toggle_edit_menu
+        )
+        self.edit_toggle_btn.pack(fill="x")
+
+        # The actual content container from edit_facilities.py
+        self.edit_content = ctk.CTkFrame(self.edit_menu_frame, fg_color="#333333")
+        # Initialize the logic inside the container
+        self.facility_logic = EditFacilities(
+            self.edit_content, 
+            map_handler=master.master.editor_workspace.map_handler
+        )
+        self.facility_logic.pack(fill="x", padx=5, pady=5)
+
+    def toggle_edit_menu(self):
+        """Toggles the visibility of the Edit Facilities content."""
+        if self.is_edit_open:
+            self.edit_content.pack_forget()
+            self.edit_toggle_btn.configure(text="▶ Edit Facilities")
+        else:
+            self.edit_content.pack(fill="x", pady=(2, 0))
+            self.edit_toggle_btn.configure(text="▼ Edit Facilities")
+        
+        self.is_edit_open = not self.is_edit_open
 
     def do_resize(self, event):
         new_width = event.x_root - self.winfo_rootx()
