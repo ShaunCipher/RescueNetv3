@@ -9,3 +9,4 @@ id,name,category,capacity,occupants,operating_hours,status,is_open
 393,Hospital_8,Hospital,500,0,00:00-23:59,Available,TRUE
 398,Hospital_9,Hospital,300,0,00:00-23:59,Available,TRUE
 405,Hospital_10,Hospital,350,0,00:00-23:59,Available,TRUE
+436,sssdddd,123,00:00-23:59

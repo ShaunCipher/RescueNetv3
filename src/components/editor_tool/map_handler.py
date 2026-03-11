@@ -23,8 +23,7 @@ class MapHandler:
         for spine in self.ax.spines.values():
             spine.set_edgecolor('#444444')
 
-        # Dictionary to store scatter plot objects for visibility toggling
-        # Format: { 'hospital': <PathCollection>, 'school': <PathCollection>, ... }
+        # Storage for visibility toggling
         self.facility_scatter_plots = {}
 
         # 3. Canvas & Toolbar Setup
@@ -32,8 +31,35 @@ class MapHandler:
         self.toolbar = NavigationToolbar2Tk(self.canvas, container)
         self.toolbar.pack_forget() 
 
+        # --- NEW: Click Listener Attributes ---
+        self.click_callback = None
+        self.cid = None # Connection ID for the Matplotlib event
+
     def get_canvas_widget(self):
         return self.canvas.get_tk_widget()
+
+    # --- Click Handling Logic for Add Facility ---
+
+    def enable_click_listener(self, callback):
+        """Connects the map click event to a callback function."""
+        self.click_callback = callback
+        self.cid = self.canvas.mpl_connect('button_press_event', self._on_click)
+
+    def disable_click_listener(self):
+        """Disconnects the map click event."""
+        if self.cid:
+            self.canvas.mpl_disconnect(self.cid)
+            self.cid = None
+            self.click_callback = None
+
+    def _on_click(self, event):
+        """Internal handler for Matplotlib clicks."""
+        # Only trigger if the click is inside the map axes and a callback exists
+        if event.inaxes == self.ax and self.click_callback:
+            # Pass the x and y coordinates back to the UI (EditFacilities)
+            self.click_callback(event.xdata, event.ydata)
+
+    # --- Plotting & Visibility Logic ---
 
     def load_and_plot_facilities(self):
         """Initial load: Joins nodes.csv with facility data and plots them (hidden)."""
@@ -87,23 +113,19 @@ class MapHandler:
 
     def update_facility_visibility(self, master_show, category_choice):
         """Updates Matplotlib visibility based on Switch and Dropdown states."""
-        # Normalize choice (e.g., 'Hospitals' -> 'hospital', 'Show All' -> 'all')
         choice = category_choice.lower().strip()
         
         if choice == "show all":
             choice = "all"
         elif choice.endswith('s') and choice != "none":
-            choice = choice[:-1] # Remove the 's' for 'hospitals', 'firestations', etc.
+            choice = choice[:-1] 
 
         for cat_key, scatter in self.facility_scatter_plots.items():
             if not master_show or choice == "none":
-                # Master switch is OFF or "None" selected: Hide all
                 scatter.set_visible(False)
             elif choice == "all":
-                # Master ON and "Show All": Show everything
                 scatter.set_visible(True)
             else:
-                # Master ON and specific category selected
                 scatter.set_visible(cat_key == choice)
         
         self.canvas.draw_idle()

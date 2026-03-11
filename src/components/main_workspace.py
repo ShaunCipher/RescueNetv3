@@ -112,27 +112,58 @@ class MainWorkspace(ctk.CTkFrame):
                           fg_color="#333333", hover_color="#444444", command=cmd).pack(side="left", padx=5)
 
     def plot_facilities(self):
-        """Initial plot of infrastructure. STRICTLY excludes accident nodes."""
+        """Modified to load both production and staged facilities."""
         start = perf_counter()
         color_map = get_colors()
         
-        # We ensure we only plot categories defined in map_utils, excluding 'accident'
+        # 1. Check for staged facilities data
+        data_dir = "data"
+        staging_path = os.path.join(data_dir, "new_facilities.csv")
+        staging_nodes_path = os.path.join(data_dir, "new_nodes.csv")
+        
+        # Combine existing master data with staged data if it exists
+        display_data = self.all_data.copy()
+        
+        if os.path.exists(staging_path) and os.path.exists(staging_nodes_path):
+            try:
+                # Load staged data
+                staged_fac = pd.read_csv(staging_path)
+                staged_nodes = pd.read_csv(staging_nodes_path)
+                
+                # Merge staged facilities with their coordinates
+                merged_staged = pd.merge(staged_fac, staged_nodes[['id', 'x', 'y']], on='id')
+                
+                # Append to the main display dataframe
+                display_data = pd.concat([display_data, merged_staged], ignore_index=True)
+                self.terminal.log("STAGING: Included new facilities in map view.")
+            except Exception as e:
+                self.terminal.log(f"ERROR: Could not load staging data: {e}")
+
+        # 2. Plotting Logic
         for cat in get_category_order():
             cat_lower = cat.lower()
             if cat_lower == 'accident': 
                 continue 
             
-            group = self.all_data[self.all_data['category'] == cat_lower]
+            # Use display_data instead of self.all_data
+            group = display_data[display_data['category'] == cat_lower]
+            
             if not group.empty:
+                # Clear existing plot if it exists (for refreshing)
+                if cat_lower in self.plots:
+                    self.plots[cat_lower].remove()
+
                 self.plots[cat_lower] = self.ax.scatter(
                     group['x'], group['y'], 
                     c=color_map.get(cat_lower, 'white'), 
                     s=80, edgecolors='white', linewidth=0.5, zorder=5,
                     picker=True, pickradius=5
                 )
+                
         self.canvas.draw()
         end = perf_counter()
-        self.terminal.log(f"Facilities plotted in {end - start:.2f} seconds.")
+        self.terminal.log(f"Facilities (incl. staging) plotted in {end - start:.2f} seconds.")
+
 
     def refresh_accident_plot(self):
         """Clears and redraws the specialized Accident layer."""
