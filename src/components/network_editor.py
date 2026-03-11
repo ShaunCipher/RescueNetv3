@@ -1,10 +1,12 @@
 import customtkinter as ctk
 from src.components.editor_tool.editor_left_panel import EditorLeftPanel
+from src.components.editor_tool.workspace import Workspace
 
 class NetworkEditor(ctk.CTkToplevel):
-    def __init__(self, parent, workspace=None):
+    # Change 'workspace_data' back to 'workspace' here
+    def __init__(self, parent, workspace=None): 
         super().__init__(parent)
-        self.workspace = workspace
+        self.workspace = workspace # Store the passed workspace reference
         self.title("RescueNet Road Network Editor")
         
         self.after(200, lambda: self.state('zoomed')) 
@@ -26,18 +28,16 @@ class NetworkEditor(ctk.CTkToplevel):
         )
         self.left_panel.pack(side="left", fill="y")
 
-        # 2. Content Area (Map/Canvas area)
-        self.content_area = ctk.CTkFrame(self.main_container, corner_radius=0, fg_color="#1a1a1a")
-        self.content_area.pack(side="left", fill="both", expand=True)
+        # 2. Workspace Area (The Matplotlib piece)
+        self.editor_workspace = Workspace(self.main_container)
+        self.editor_workspace.pack(side="left", fill="both", expand=True)
 
         self.protocol("WM_DELETE_WINDOW", self.close_editor)
 
     def toggle_sidebar(self):
         if self.is_panel_open:
-            # Collapse: Keep just enough width for the button tab (approx 25px)
             self.left_panel.configure(width=25)
         else:
-            # Expand: Return to the previous width
             self.left_panel.configure(width=self.current_width)
             
         self.is_panel_open = not self.is_panel_open
