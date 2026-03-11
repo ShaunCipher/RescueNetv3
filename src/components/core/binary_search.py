@@ -1,5 +1,6 @@
 import math
 import os
+from time import perf_counter
 
 import pandas as pd
 
@@ -127,8 +128,11 @@ def _build_sorted_facility_list(master_registry, node_map, accident_coords):
     return facilities
 
 
-def binary_search(arr, target, key):
-    """Perform binary search on a sorted list of dictionaries."""
+def binary_search(arr, target, key, log_fn=None):
+    """Perform binary search on a sorted list of dictionaries with timing."""
+
+    start = perf_counter()
+    result = -1
 
     left = 0
     right = len(arr) - 1
@@ -138,35 +142,58 @@ def binary_search(arr, target, key):
         mid_value = arr[mid].get(key)
 
         if mid_value is None:
-            return -1
+            result = -1
+            break
 
         if mid_value == target:
-            return mid
+            result = mid
+            break
         if mid_value < target:
             left = mid + 1
         else:
             right = mid - 1
 
-    return -1
+    end = perf_counter() - start
+    msg = f"binary_search completed on {len(arr)} elements in {end:.6f} seconds"
+    if log_fn:
+        log_fn(msg)
+    else:
+        print(msg)
+
+    return result
 
 
-def find_by_distance(master_registry, node_map, accident_coords, target_distance):
+def find_by_distance(master_registry, node_map, accident_coords, target_distance, workspace=None):
     """Find a facility by rounded Euclidean distance using binary search."""
+
+    def _log(message):
+        if workspace and hasattr(workspace, 'terminal') and hasattr(workspace.terminal, 'log'):
+            workspace.terminal.log(message)
+        else:
+            print(message)
+
+    start = perf_counter()
 
     try:
         rounded_target = round(float(target_distance), 2)
     except (TypeError, ValueError):
+        end = perf_counter() - start
+        _log(f"find_by_distance failed on invalid target in {end:.6f} seconds")
         return None, []
 
     sorted_facilities = _build_sorted_facility_list(master_registry, node_map, accident_coords)
     if not sorted_facilities:
         return None, []
 
-    index = binary_search(sorted_facilities, rounded_target, "distance")
+    index = binary_search(sorted_facilities, rounded_target, "distance", log_fn=_log)
     if index == -1:
+        end = perf_counter() - start
+        _log(f"find_by_distance completed in {end:.6f} seconds (no exact match)")
         return None, sorted_facilities
 
     while index > 0 and sorted_facilities[index - 1].get("distance") == rounded_target:
         index -= 1
 
+    end = perf_counter() - start
+    _log(f"find_by_distance completed in {end:.6f} seconds")
     return sorted_facilities[index], sorted_facilities
