@@ -3,6 +3,7 @@ import os
 import csv
 from src.components.core.merge_sort import merge_sort, sort_facilities_by_distance
 from .network_editor import NetworkEditor
+from src.components.core.binary_search import find_by_distance  # New Import
 
 class LeftPanel(ctk.CTkFrame):
     def __init__(self, master, toggle_cmd, workspace=None, **kwargs):
@@ -60,11 +61,22 @@ class LeftPanel(ctk.CTkFrame):
 
         # Existing Sort Button
         self.sort_btn = ctk.CTkButton(
-            self.action_frame, text="Sort Facilities (Merge Sort)", 
+            self.action_frame, text="🔍 Find Nearest Facilities", 
             height=40, fg_color="#28a745", hover_color="#218838",
             command=self.open_sorted_view
         )
         self.sort_btn.pack(fill="x", padx=10, pady=(0, 10))
+
+        # NEW: Binary Search Button
+        self.search_btn = ctk.CTkButton(
+            self.action_frame,
+            text="🔍 Target Search",
+            height=40,
+            fg_color="#6f42c1",
+            hover_color="#59359a",
+            command=self.open_binary_search_view
+        )
+        self.search_btn.pack(fill="x", padx=10, pady=(0, 10))
 
         # Existing Route Button
         self.route_btn = ctk.CTkButton(
@@ -77,7 +89,7 @@ class LeftPanel(ctk.CTkFrame):
         )
         self.route_btn.pack(fill="x", padx=10, pady=(0, 10))
 
-        # NEW: Road Network Editor Button
+        # Existing Road Network Editor Button
         self.editor_btn = ctk.CTkButton(
             self.action_frame,
             text="🛠️ Edit Road Network",
@@ -210,7 +222,6 @@ class LeftPanel(ctk.CTkFrame):
             accident_node_id=acc_id
         )
 
-        # --- REMOVE UNKNOWN CATEGORY FROM RESULTS ---
         if "Unknown" in facilities_by_category:
             del facilities_by_category["Unknown"]
 
@@ -320,7 +331,7 @@ class LeftPanel(ctk.CTkFrame):
             width=350,
             command=lambda sel: self.perform_sort(self.dropdown_map.get(sel, ''))
         )
-        self.accident_dropdown.set("") # --- BLANK BY DEFAULT ---
+        self.accident_dropdown.set("") 
         self.accident_dropdown.pack(pady=10)
 
         filter_label = ctk.CTkLabel(popup, text="Filter View:", font=("Arial", 12))
@@ -333,7 +344,7 @@ class LeftPanel(ctk.CTkFrame):
             width=350,
             command=self._on_filter_change
         )
-        self.filter_dropdown.set("") # --- BLANK BY DEFAULT ---
+        self.filter_dropdown.set("") 
         self.filter_dropdown.pack(pady=(5, 10))
 
         self.results_scroll = ctk.CTkScrollableFrame(popup, width=460, height=400)
@@ -364,3 +375,61 @@ class LeftPanel(ctk.CTkFrame):
         else:
             self.editor_window = NetworkEditor(self.master, workspace=self.workspace)
             self.editor_window.grab_set()
+
+    # --- BINARY SEARCH IMPLEMENTATION ---
+
+    def open_binary_search_view(self):
+        """Opens a window to perform binary search for a specific distance."""
+        if not self.workspace: return
+
+        popup = ctk.CTkToplevel(self)
+        popup.title("Binary Search: Find by Distance")
+        popup.geometry("450x500")
+        popup.attributes("-topmost", True)
+        
+        ctk.CTkLabel(popup, text="Binary Search Facility", font=("Arial", 18, "bold")).pack(pady=10)
+
+        # 1. Accident Selection
+        ctk.CTkLabel(popup, text="1. Select Accident Location:").pack(pady=(10, 0))
+        display_values = [f"{aid} - {row.get('name','')}" for aid, row in self.accident_data.items()]
+        acc_dropdown = ctk.CTkComboBox(popup, values=display_values, width=300)
+        acc_dropdown.pack(pady=5)
+
+        # 2. Distance Input
+        ctk.CTkLabel(popup, text="2. Enter Target Distance (km):").pack(pady=(10, 0))
+        dist_entry = ctk.CTkEntry(popup, placeholder_text="e.g. 1.45", width=200)
+        dist_entry.pack(pady=5)
+
+        # 3. Results Area
+        res_frame = ctk.CTkScrollableFrame(popup, width=400, height=200)
+        
+        def run_search():
+            for widget in res_frame.winfo_children(): widget.destroy()
+            try:
+                selection = acc_dropdown.get()
+                if not selection: return
+                acc_id = selection.split(" - ")[0]
+                target_dist = float(dist_entry.get())
+                acc_coords = self.node_map.get(str(acc_id))
+                
+                match, all_sorted = find_by_distance(
+                    self.workspace.master_registry,
+                    self.node_map,
+                    acc_coords,
+                    target_dist
+                )
+
+                if match:
+                    ctk.CTkLabel(res_frame, text="MATCH FOUND!", text_color="#28a745", font=("Arial", 12, "bold")).pack()
+                    info = f"Name: {match.get('name')}\nCategory: {match.get('category', 'N/A')}\nDistance: {match.get('distance')} km"
+                    ctk.CTkLabel(res_frame, text=info, justify="left").pack(pady=10)
+                else:
+                    ctk.CTkLabel(res_frame, text="No exact match found.", text_color="#e74c3c").pack()
+                    ctk.CTkLabel(res_frame, text="Closest facilities:", font=("Arial", 11, "italic")).pack(pady=5)
+                    for f in all_sorted[:5]:
+                        ctk.CTkLabel(res_frame, text=f"{f.get('name')} ({f.get('distance')} km)", font=("Arial", 10)).pack()
+            except ValueError:
+                ctk.CTkLabel(res_frame, text="Error: Please enter a valid number", text_color="red").pack()
+
+        ctk.CTkButton(popup, text="Execute Binary Search", command=run_search).pack(pady=15)
+        res_frame.pack(padx=20, pady=10, fill="both", expand=True)
