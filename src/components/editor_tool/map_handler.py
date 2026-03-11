@@ -31,7 +31,6 @@ class MapHandler:
         self.toolbar = NavigationToolbar2Tk(self.canvas, container)
         self.toolbar.pack_forget() 
 
-        # --- NEW: Click Listener Attributes ---
         self.click_callback = None
         self.cid = None # Connection ID for the Matplotlib event
 
@@ -53,7 +52,6 @@ class MapHandler:
             self.click_callback = None
 
     def _on_click(self, event):
-        """Internal handler for Matplotlib clicks."""
         # Only trigger if the click is inside the map axes and a callback exists
         if event.inaxes == self.ax and self.click_callback:
             # Pass the x and y coordinates back to the UI (EditFacilities)
@@ -62,7 +60,6 @@ class MapHandler:
     # --- Plotting & Visibility Logic ---
 
     def load_and_plot_facilities(self):
-        """Initial load: Joins nodes.csv with facility data and plots them (hidden)."""
         data_dir = "data"
         nodes_path = os.path.join(data_dir, "nodes.csv")
         
@@ -112,7 +109,6 @@ class MapHandler:
         self.canvas.draw_idle()
 
     def update_facility_visibility(self, master_show, category_choice):
-        """Updates Matplotlib visibility based on Switch and Dropdown states."""
         choice = category_choice.lower().strip()
         
         if choice == "show all":

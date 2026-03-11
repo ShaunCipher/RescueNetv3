@@ -20,11 +20,9 @@ class Workspace(ctk.CTkFrame):
         self.controls.place(relx=0.02, rely=0.02, anchor="nw")
 
         # 3. Load and plot the facility nodes immediately on startup
-        # This ensures the map isn't blank when the editor opens
         self.map_handler.load_and_plot_facilities()
 
     def refresh_map_plot(self):
-        """Clears the axis and re-loads nodes from CSV files."""
         # Optional: You can clear the axis here if you want a clean slate
-        # self.map_handler.ax.clear() 
+        self.map_handler.ax.clear() 
         self.map_handler.load_and_plot_facilities()

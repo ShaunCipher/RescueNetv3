@@ -166,7 +166,6 @@ class MainWorkspace(ctk.CTkFrame):
 
 
     def refresh_accident_plot(self):
-        """Clears and redraws the specialized Accident layer."""
         # 1. Remove existing plot if it exists
         if 'accident' in self.plots:
             try:
