@@ -36,11 +36,15 @@ class EditFacilities(ctk.CTkFrame):
         self.category_dropdown.pack(fill="x", padx=10, pady=(0, 10))
 
     def handle_node_visibility(self):
-        # Link this to your map data later
-        print(f"Visibility Toggle: {self.show_nodes_var.get()}")
-        self.map_handler.canvas.draw_idle()
+        # Pass the master switch state and current dropdown choice
+        self.map_handler.update_facility_visibility(
+            self.show_nodes_var.get(),
+            self.category_dropdown.get()
+        )
 
     def handle_filter_selection(self, choice):
-        # Link this to your plotting logic later
-        print(f"Filter Selected: {choice}")
-        self.map_handler.canvas.draw_idle()
+        # Re-trigger visibility logic whenever the dropdown changes
+        self.map_handler.update_facility_visibility(
+            self.show_nodes_var.get(),
+            choice
+        )
