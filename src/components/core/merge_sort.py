@@ -83,12 +83,6 @@ def merge(left, right, key):
     return result
 
 def sort_facilities_by_distance(master_registry, node_map, accident_coords, edges_df=None, accident_node_id=None, workspace=None):
-    """
-    Calculates distances (Road or Euclidean) and groups facilities by category.
-    Filters out 'Unknown' categories to keep the UI clean.
-
-    If workspace with terminal logger is provided, timing messages are routed to the terminal.
-    """
     def _log(message):
         if workspace and hasattr(workspace, 'terminal') and hasattr(workspace.terminal, 'log'):
             workspace.terminal.log(message)

@@ -7,48 +7,44 @@ class AccidentVisibility:
         self.fig = fig
         self.nodes_path = nodes_path
         self.acc_path = acc_path
-        self.markers = [] # Keep track of the 'rx' plots
+        self.accident_plot = None  # Reference for the Inspector to use
 
     def clear_markers(self):
         """Removes existing accident markers from the map."""
-        for marker in self.markers:
+        if self.accident_plot:
             try:
-                marker.remove()
+                self.accident_plot.remove()
             except:
                 pass
-        self.markers = []
+            self.accident_plot = None
 
     def update_map(self):
-        """Reads CSVs and plots active accidents."""
+        """Reads CSVs and plots active accidents as clickable scatter points."""
         self.clear_markers()
 
         if not os.path.exists(self.nodes_path) or not os.path.exists(self.acc_path):
             return
 
         try:
-            # Load Data
             nodes_df = pd.read_csv(self.nodes_path)
             acc_df = pd.read_csv(self.acc_path)
 
-            # 1. Get IDs of all active accidents from accidents.csv
             active_ids = acc_df['id'].unique()
-
-            # 2. Filter nodes.csv to only those IDs
-            # This ensures we get the (x, y) coordinates for the accidents
             active_nodes = nodes_df[nodes_df['id'].isin(active_ids)]
 
-            # 3. Plot them
-            for _, row in active_nodes.iterrows():
-                # Plot as Red X
-                p, = self.ax.plot(
-                    row['x'], 
-                    row['y'], 
-                    'rx', 
-                    markersize=12, 
-                    markeredgewidth=3, 
-                    zorder=100
+            if not active_nodes.empty:
+                # Plot as a Scatter collection to enable 'picking'
+                self.accident_plot = self.ax.scatter(
+                    active_nodes['x'], 
+                    active_nodes['y'], 
+                    color='#e74c3c', 
+                    marker='x', 
+                    s=120, 
+                    linewidths=3, 
+                    zorder=100,
+                    picker=True,     # Makes the points clickable
+                    label='Accidents'
                 )
-                self.markers.append(p)
 
             self.fig.canvas.draw_idle()
             
@@ -57,6 +53,6 @@ class AccidentVisibility:
 
     def toggle_visibility(self, show):
         """Quickly show/hide markers without re-reading CSVs."""
-        for marker in self.markers:
-            marker.set_visible(show)
+        if self.accident_plot:
+            self.accident_plot.set_visible(show)
         self.fig.canvas.draw_idle()

@@ -117,20 +117,15 @@ class FacilityFormWindow(ctk.CTkToplevel):
         row_data = {'id': new_id}
         for field in fieldnames:
             if field == 'id': continue
-            # Use cget("state") check because disabled entries (category) behave differently
             val = self.entries[field].get()
             row_data[field] = str(val).strip()
 
-        # Handle file writing and header logic
         file_exists = os.path.exists(fac_path) and os.path.getsize(fac_path) > 0
         
         if file_exists:
             with open(fac_path, 'r', newline='') as f:
                 existing_header = next(csv.reader(f), None)
             
-            # If the current category layout differs from what's in the CSV, 
-            # we should append but be careful, or start a new file. 
-            # For simplicity, we assume the user wants the file to match the current row.
             if existing_header != fieldnames:
                 print("Warning: Header mismatch. Starting new file structure.")
                 mode = 'w'
