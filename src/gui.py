@@ -45,7 +45,7 @@ class App(ctk.CTk):
             self, 
             orient=tk.HORIZONTAL, 
             bg=Theme.BG_DARK,
-            sashwidth=4, 
+            sashwidth=6, 
             sashpad=0, 
             borderwidth=0
         )
@@ -164,10 +164,10 @@ class App(ctk.CTk):
             except: pass
         
         if self.left_visible:
-            self.paned_window.add(self.left_panel, width=280, stretch="never")
-        self.paned_window.add(self.center_view, stretch="always")
+            self.paned_window.add(self.left_panel, width=280, stretch="never", minsize=200)
+        self.paned_window.add(self.center_view, stretch="always", minsize=400)
         if self.right_visible:
-            self.paned_window.add(self.right_panel, width=320, stretch="never")
+            self.paned_window.add(self.right_panel, width=320, stretch="never", minsize=200)
 
     def toggle_left(self):
         if self.left_visible:

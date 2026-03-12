@@ -33,8 +33,8 @@ class MainWorkspace(ctk.CTkFrame):
         self.work_area = ctk.CTkFrame(self.v_paned, corner_radius=0, fg_color="#212121")
         self.terminal = TerminalPanel(self.v_paned)
 
-        self.v_paned.add(self.work_area, stretch="always")
-        self.v_paned.add(self.terminal, height=180, stretch="never")
+        self.v_paned.add(self.work_area, stretch="always", minsize=400)
+        self.v_paned.add(self.terminal, height=180, stretch="never", minsize=150)
 
         # 3. Setup Map
         self.setup_map()
