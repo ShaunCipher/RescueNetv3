@@ -311,8 +311,8 @@ class LeftPanel(ctk.CTkFrame):
         popup = ctk.CTkToplevel(self)
         popup.title("Facilities Sorted by Distance")
         popup.geometry("500x550")
-        popup.attributes("-topmost", True)
-        popup.focus_force()
+        popup.transient(self)
+        popup.focus_set()
         popup.lift()
         
         self.sorted_view_window = popup
@@ -372,10 +372,11 @@ class LeftPanel(ctk.CTkFrame):
 
     def open_network_editor(self):
         if hasattr(self, 'editor_window') and self.editor_window.winfo_exists():
-            self.editor_window.focus_force()
+            self.editor_window.lift()
+            self.editor_window.focus_set()
         else:
             self.editor_window = NetworkEditor(self.master, workspace=self.workspace)
-            self.editor_window.grab_set()
+            self.editor_window.transient(self.master)
 
     # --- BINARY SEARCH IMPLEMENTATION ---
 

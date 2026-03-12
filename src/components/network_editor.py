@@ -11,7 +11,7 @@ class NetworkEditor(ctk.CTkToplevel):
         self.after(200, lambda: self.state('zoomed')) 
         self.lift()
         self.focus_force()
-        self.grab_set() 
+        self.transient(parent) 
 
         self.is_panel_open = True
         self.current_width = 250 
