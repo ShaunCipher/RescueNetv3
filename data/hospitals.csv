@@ -9,3 +9,6 @@ id,name,category,capacity,occupants,operating_hours,status,is_open
 393,Hospital_8,Hospital,500,0,00:00-23:59,Available,TRUE
 398,Hospital_9,Hospital,300,0,00:00-23:59,Available,TRUE
 405,Hospital_10,Hospital,350,0,00:00-23:59,Available,TRUE
+438,sample1,Hospital,200,30,00:00-23:59,Available,TRUE
+437,Osbin,200,00:00-23:59
+449,Doctor Kwak Kwak,Hospital,200,10,00:00-23:59,Available,TRUE

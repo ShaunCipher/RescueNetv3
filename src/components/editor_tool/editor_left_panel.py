@@ -3,6 +3,7 @@ from tkinter import messagebox
 import os
 import pandas as pd
 from .edit_facilities import EditFacilities
+from .path_utils import get_data_dir
 
 
 class EditorExitButton(ctk.CTkFrame):
@@ -124,19 +125,22 @@ class EditorLeftPanel(ctk.CTkFrame):
     # ---------------------------------------------------
 
     def confirm_global_save(self):
+        data_dir = get_data_dir()
+        staged_nodes_path = os.path.join(data_dir, "new_nodes.csv")
+        staged_facilities_path = os.path.join(data_dir, "new_facilities.csv")
+        has_staged_nodes = os.path.exists(staged_nodes_path)
+        has_staged_facilities = os.path.exists(staged_facilities_path)
 
-        if not os.path.exists("data/new_nodes.csv") and not os.path.exists("data/new_facilities.csv"):
-
+        if not has_staged_nodes and not has_staged_facilities:
             messagebox.showinfo(
-                "No Changes",
-                "No staged facilities found to commit."
+                "Already Saved",
+                "Facilities added in the road network editor are now saved directly to the main CSV files. There are no staged changes to commit."
             )
-
             return
 
         response = messagebox.askyesno(
             "Confirm Commit",
-            "This will merge all staged nodes into the main database and clear staging files.\n\nContinue?"
+            "This will merge any legacy staged nodes into the main database and clear the staging files.\n\nContinue?"
         )
 
         if response:
@@ -148,19 +152,19 @@ class EditorLeftPanel(ctk.CTkFrame):
 
         try:
 
-            data_dir = "data"
+            data_dir = get_data_dir()
 
             # ----------------------------------------
             # MERGE NODE COORDINATES
             # ----------------------------------------
 
-            nodes_staging = f"{data_dir}/new_nodes.csv"
+            nodes_staging = os.path.join(data_dir, "new_nodes.csv")
 
             if os.path.exists(nodes_staging):
 
                 new_nodes = pd.read_csv(nodes_staging)
 
-                prod_nodes = f"{data_dir}/nodes.csv"
+                prod_nodes = os.path.join(data_dir, "nodes.csv")
 
                 new_nodes.to_csv(
                     prod_nodes,
@@ -173,7 +177,7 @@ class EditorLeftPanel(ctk.CTkFrame):
             # MERGE FACILITY DATA
             # ----------------------------------------
 
-            staging_fac_path = f"{data_dir}/new_facilities.csv"
+            staging_fac_path = os.path.join(data_dir, "new_facilities.csv")
 
             if os.path.exists(staging_fac_path):
 
@@ -221,8 +225,8 @@ class EditorLeftPanel(ctk.CTkFrame):
             # CLEANUP STAGING FILES
             # ----------------------------------------
 
-            if os.path.exists(f"{data_dir}/new_nodes.csv"):
-                os.remove(f"{data_dir}/new_nodes.csv")
+            if os.path.exists(nodes_staging):
+                os.remove(nodes_staging)
 
             if os.path.exists(staging_fac_path):
                 os.remove(staging_fac_path)

@@ -4,6 +4,7 @@ import matplotlib.image as mpimg
 import pandas as pd
 import os
 from .map_utils import get_colors, get_category_order
+from .path_utils import get_data_dir
 
 class MapHandler:
     def __init__(self, container):
@@ -60,7 +61,7 @@ class MapHandler:
     # --- Plotting & Visibility Logic ---
 
     def load_and_plot_facilities(self):
-        data_dir = "data"
+        data_dir = get_data_dir()
         nodes_path = os.path.join(data_dir, "nodes.csv")
         
         if not os.path.exists(nodes_path):

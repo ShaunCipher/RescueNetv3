@@ -10,3 +10,4 @@ id,name,category,capacity,occupants,operating_hours,status,is_open
 399,Church_9,Church,425,0,00:00-23:59,Available,TRUE
 404,Church_10,Church,500,0,00:00-23:59,Available,TRUE
 407,Church_11,Church,475,0,00:00-23:59,Available,TRUE
+453,Perpetual,Church,100,50,06:00-21:00,Available,TRUE
