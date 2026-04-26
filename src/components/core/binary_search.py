@@ -3,6 +3,7 @@ import os
 from time import perf_counter
 
 import pandas as pd
+from src.utils.logger import Logger
 
 
 FACILITY_FILES = (
@@ -167,7 +168,9 @@ def find_by_distance(master_registry, node_map, accident_coords, target_distance
     """Find a facility by rounded Euclidean distance using binary search."""
 
     def _log(message):
-        if workspace and hasattr(workspace, 'terminal') and hasattr(workspace.terminal, 'log'):
+        if workspace and hasattr(workspace, 'logger'):
+            workspace.logger.log(message)
+        elif workspace and hasattr(workspace, 'terminal') and hasattr(workspace.terminal, 'log'):
             workspace.terminal.log(message)
         else:
             print(message)

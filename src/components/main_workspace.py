@@ -14,6 +14,7 @@ from src.components.core.filter_logic import FilterLogic
 from src.components.core.inspect_node import NodeInspector
 from src.components.core.routing_manager import RoutingManager
 from src.components.core.accident_manager import AccidentManager
+from src.utils.logger import Logger
 
 class MainWorkspace(ctk.CTkFrame):
     def __init__(self, master, **kwargs):
@@ -31,7 +32,10 @@ class MainWorkspace(ctk.CTkFrame):
         self.v_paned.pack(fill="both", expand=True)
 
         self.work_area = ctk.CTkFrame(self.v_paned, corner_radius=0, fg_color="#212121")
+
+        # Initialize centralized logger
         self.terminal = TerminalPanel(self.v_paned)
+        self.logger = Logger(terminal=self.terminal.text_area)
 
         self.v_paned.add(self.work_area, stretch="always", minsize=400)
         self.v_paned.add(self.terminal, height=180, stretch="never", minsize=150)
@@ -63,8 +67,7 @@ class MainWorkspace(ctk.CTkFrame):
         self.refresh_accident_plot()  # Plots only the Red X Accidents
         
         self.fig.canvas.mpl_connect("motion_notify_event", self.on_hover)
-        end = perf_counter()
-        self.terminal.log(f"MainWorkspace initialized in {end - start:.2f} seconds.")
+        self.logger.log_perf("MainWorkspace initialized", start)
 
     def setup_map(self):
         start = perf_counter()
@@ -79,7 +82,7 @@ class MainWorkspace(ctk.CTkFrame):
             self.ax.imshow(img)
             self.ax.axis('off')
         except FileNotFoundError:
-            self.terminal.log("ERROR: img/map.png not found.")
+            self.logger.log_error("img/map.png not found.")
 
         self.hover_ann = self.ax.annotate(
             "", xy=(0,0), xytext=(15,15), textcoords="offset points",
@@ -95,8 +98,7 @@ class MainWorkspace(ctk.CTkFrame):
 
         self.canvas_widget.pack(fill="both", expand=True)
         self.setup_custom_controls()
-        end = perf_counter()
-        self.terminal.log(f"Map setup completed in {end - start:.2f} seconds.")
+        self.logger.log_perf("Map setup completed", start)
 
     def setup_custom_controls(self):
         self.button_frame = ctk.CTkFrame(self.work_area, fg_color="transparent")
@@ -135,9 +137,9 @@ class MainWorkspace(ctk.CTkFrame):
                 
                 # Append to the main display dataframe
                 display_data = pd.concat([display_data, merged_staged], ignore_index=True)
-                self.terminal.log("STAGING: Included new facilities in map view.")
+                self.logger.log_status("STAGING: Included new facilities in map view.")
             except Exception as e:
-                self.terminal.log(f"ERROR: Could not load staging data: {e}")
+                self.logger.log_error("Could not load staging data", e)
 
         # 2. Plotting Logic
         for cat in get_category_order():
@@ -161,8 +163,7 @@ class MainWorkspace(ctk.CTkFrame):
                 )
                 
         self.canvas.draw()
-        end = perf_counter()
-        self.terminal.log(f"Facilities (incl. staging) plotted in {end - start:.2f} seconds.")
+        self.logger.log_perf("Facilities (incl. staging) plotted", start)
 
 
     def refresh_accident_plot(self):
@@ -189,7 +190,7 @@ class MainWorkspace(ctk.CTkFrame):
                     )
                 self.canvas.draw_idle()
             except Exception as e:
-                self.log_analysis(f"Error drawing accidents: {e}")
+                self.logger.log_error("Error drawing accidents", e)
 
     def on_hover(self, event):
         if event.inaxes != self.ax: return
@@ -214,6 +215,3 @@ class MainWorkspace(ctk.CTkFrame):
             self.hover_ann.set_visible(False)
         if found or (not found and vis):
             self.canvas.draw_idle()
-
-    def log_analysis(self, message):
-        self.terminal.log(message)

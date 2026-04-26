@@ -3,6 +3,7 @@ import math
 import pandas as pd
 import networkx as nx
 from time import perf_counter
+from src.utils.logger import Logger
 
 
 def merge_sort(arr, key, log_fn=None, label=None):
@@ -84,7 +85,9 @@ def merge(left, right, key):
 
 def sort_facilities_by_distance(master_registry, node_map, accident_coords, edges_df=None, accident_node_id=None, workspace=None):
     def _log(message):
-        if workspace and hasattr(workspace, 'terminal') and hasattr(workspace.terminal, 'log'):
+        if workspace and hasattr(workspace, 'logger'):
+            workspace.logger.log(message)
+        elif workspace and hasattr(workspace, 'terminal') and hasattr(workspace.terminal, 'log'):
             workspace.terminal.log(message)
         else:
             print(message)
