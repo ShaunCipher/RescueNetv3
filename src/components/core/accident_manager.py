@@ -118,23 +118,61 @@ class AccidentManager:
         return entry
 
     def setup_main_panel(self):
-        cols = ("ID", "Name", "Severity", "Victims", "Status")
+        # Sort controls toolbar
+        sort_frame = ctk.CTkFrame(self.main_panel, fg_color="transparent")
+        sort_frame.pack(fill="x", padx=10, pady=(10, 0))
+        ctk.CTkLabel(sort_frame, text="Sort by:", font=("Arial", 12)).pack(side="left", padx=(0, 8))
+
+        self.sort_var = ctk.StringVar(value="Date Added")
+        sort_options = ["Date Added", "Severity", "Victims", "ID", "Name"]
+        self.sort_menu = ctk.CTkOptionMenu(sort_frame, values=sort_options, variable=self.sort_var, width=140, command=lambda _: self.refresh_table())
+        self.sort_menu.pack(side="left", padx=4)
+
+        self.sort_asc_var = ctk.BooleanVar(value=False)
+        self.sort_dir_btn = ctk.CTkButton(sort_frame, text="⬇ Desc", width=80,
+                                          command=self._toggle_sort_dir)
+        self.sort_dir_btn.pack(side="left", padx=4)
+
+        cols = ("ID", "Name", "Severity", "Victims", "Status", "Date Added", "Facilities Needed")
         self.tree = ttk.Treeview(self.main_panel, columns=cols, show="headings")
-        
+
+        col_widths = {"ID": 45, "Name": 140, "Severity": 80, "Victims": 65,
+                      "Status": 90, "Date Added": 130, "Facilities Needed": 200}
         for col in cols:
-            self.tree.heading(col, text=col)
-            self.tree.column(col, width=100, anchor="center")
-            
+            self.tree.heading(col, text=col, command=lambda c=col: self._sort_by_column(c))
+            self.tree.column(col, width=col_widths.get(col, 100), anchor="center")
+
+        # Severity colour tags
+        self.tree.tag_configure("Critical", foreground="#e74c3c")
+        self.tree.tag_configure("Moderate", foreground="#e67e22")
+        self.tree.tag_configure("Minor",    foreground="#2ecc71")
+
         self.tree.pack(fill="both", expand=True, padx=10, pady=10)
-        
+
         # Right-click context menu
         self.context_menu = tk.Menu(self.tree, tearoff=0)
         self.context_menu.add_command(label="🔍 Search Facilities", command=self.search_from_table)
         self.context_menu.add_separator()
         self.context_menu.add_command(label="✅ Mark Completed", command=lambda: self.archive_incident("COMPLETED"))
         self.context_menu.add_command(label="🗑️ Delete Permanently", command=lambda: self.archive_incident("DELETED"))
-        
+
         self.tree.bind("<Button-3>", self.show_context_menu)
+
+    def _toggle_sort_dir(self):
+        self.sort_asc_var.set(not self.sort_asc_var.get())
+        self.sort_dir_btn.configure(text="⬆ Asc" if self.sort_asc_var.get() else "⬇ Desc")
+        self.refresh_table()
+
+    def _sort_by_column(self, col):
+        """Allow clicking a column header to sort by that column."""
+        mapping = {"ID": "ID", "Name": "Name", "Severity": "Severity",
+                   "Victims": "Victims", "Date Added": "Date Added"}
+        if col in mapping:
+            if self.sort_var.get() == mapping[col]:
+                self._toggle_sort_dir()
+            else:
+                self.sort_var.set(mapping[col])
+                self.refresh_table()
 
     def show_context_menu(self, event):
         row_id = self.tree.identify_row(event.y)
@@ -184,6 +222,17 @@ class AccidentManager:
         name = self.name_entry.get()
         if not self.selected_coords or not name:
             return messagebox.showerror("Error", "Please provide an incident name and select a location on the map.")
+
+        # Warn if no resource type has been selected
+        if not any([self.need_medical.get(), self.need_police.get(),
+                    self.need_firestation.get(), self.need_evac.get()]):
+            if not messagebox.askyesno(
+                "No Resources Selected",
+                "⚠️ No resources have been selected for this incident.\n\n"
+                "The system will be unable to dispatch any facilities.\n\n"
+                "Do you want to submit anyway?"
+            ):
+                return
             
         try:
             # 1. Update nodes.csv
@@ -199,7 +248,8 @@ class AccidentManager:
                 "id": new_id, "name": name, "num_victims": self.victims_entry.get() or 0,
                 "severity": self.severity_var.get(), "status": "REPORTED",
                 "need_medical": self.need_medical.get(), "need_police": self.need_police.get(),
-                "need_firestation": self.need_firestation.get(), "need_evac": self.need_evac.get()
+                "need_firestation": self.need_firestation.get(), "need_evac": self.need_evac.get(),
+                "date_added": datetime.now().strftime("%Y-%m-%d %H:%M"),
             }
             pd.DataFrame([acc_data]).to_csv(self.acc_file, mode='a', header=not os.path.exists(self.acc_file), index=False)
             
@@ -337,12 +387,29 @@ class AccidentManager:
         row = match.iloc[0]
 
         # Log to history
+        # Build a human-readable resources string from boolean columns
+        res_parts = []
+        if str(row.get('need_medical',    '')).lower() in ['true', '1', '1.0']: res_parts.append("Medical")
+        if str(row.get('need_police',     '')).lower() in ['true', '1', '1.0']: res_parts.append("Police")
+        if str(row.get('need_firestation','')).lower() in ['true', '1', '1.0']: res_parts.append("Fire Station")
+        if str(row.get('need_evac',       '')).lower() in ['true', '1', '1.0']: res_parts.append("Evacuation")
+
+        # Try to pull x/y coords from nodes.csv for location column
+        try:
+            n_match = df_nodes[df_nodes['id'] == acc_id]
+            loc_str = f"({round(n_match.iloc[0]['x'],2)}, {round(n_match.iloc[0]['y'],2)})" if not n_match.empty else "N/A"
+        except Exception:
+            loc_str = "N/A"
+
         history_entry = {
-            "id": acc_id,
-            "name": row['name'],
-            "severity": row['severity'],
-            "outcome": outcome,
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
+            "id":        acc_id,
+            "name":      row['name'],
+            "severity":  row['severity'],
+            "victims":   row.get('num_victims', 'N/A'),
+            "location":  loc_str,
+            "resources": ", ".join(res_parts) if res_parts else "None",
+            "outcome":   outcome,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
         }
         
         pd.DataFrame([history_entry]).to_csv(self.hist_file, mode='a', header=not os.path.exists(self.hist_file), index=False)
@@ -350,6 +417,12 @@ class AccidentManager:
         # Remove from active files
         df_acc[df_acc['id'] != acc_id].to_csv(self.acc_file, index=False)
         df_nodes[df_nodes['id'] != acc_id].to_csv(self.node_file, index=False)
+
+        # Also remove any edges connected to this incident node
+        if os.path.exists(self.edge_file):
+            df_edges = pd.read_csv(self.edge_file)
+            df_edges = df_edges[(df_edges['from'] != acc_id) & (df_edges['to'] != acc_id)]
+            df_edges.to_csv(self.edge_file, index=False)
         
         self.refresh_all_data()
         messagebox.showinfo("Archive", f"Incident {acc_id} has been marked as {outcome}.")
@@ -358,27 +431,44 @@ class AccidentManager:
     def open_history_window(self):
         h_win = ctk.CTkToplevel()
         h_win.title("RescueNet History Archive")
-        h_win.geometry("1100x650")
+        h_win.geometry("1280x650")
         h_win.attributes("-topmost", True)
 
         head_frame = ctk.CTkFrame(h_win, fg_color="transparent")
         head_frame.pack(fill="x", padx=20, pady=15)
         ctk.CTkLabel(head_frame, text="ARCHIVED INCIDENT LOGS", font=("Arial", 18, "bold")).pack(side="left")
         
-        cols = ("ID", "Incident Name", "Severity", "Final Status", "Date/Time")
+        cols = ("ID", "Incident Name", "Severity", "Victims", "Location", "Resources", "Final Status", "Date/Time")
         h_tree = ttk.Treeview(h_win, columns=cols, show="headings")
+        col_widths = {"ID": 50, "Incident Name": 160, "Severity": 80,
+                      "Victims": 65, "Location": 130, "Resources": 170,
+                      "Final Status": 110, "Date/Time": 130}
         for c in cols:
             h_tree.heading(c, text=c)
-            h_tree.column(c, width=160, anchor="center")
+            h_tree.column(c, width=col_widths.get(c, 110), anchor="center")
         h_tree.pack(fill="both", expand=True, padx=20, pady=10)
+
+        # Severity colour tags
+        h_tree.tag_configure("Critical", foreground="#e74c3c")
+        h_tree.tag_configure("Moderate", foreground="#e67e22")
+        h_tree.tag_configure("Minor",    foreground="#2ecc71")
         
         ctk.CTkButton(head_frame, text="🗑️ Clear Entire History", fg_color="#c0392b", hover_color="#a93226", 
                      command=lambda: self.reset_history_file(h_tree)).pack(side="right")
 
         if os.path.exists(self.hist_file):
             h_df = pd.read_csv(self.hist_file)
+            # Back-fill columns that may be absent in older history files
+            for col in ('victims', 'location', 'resources'):
+                if col not in h_df.columns:
+                    h_df[col] = 'N/A'
             for _, r in h_df.sort_values(by='timestamp', ascending=False).iterrows():
-                h_tree.insert("", "end", values=(r.get('id',''), r.get('name',''), r.get('severity',''), r.get('outcome',''), r.get('timestamp','')))
+                sev = r.get('severity', '')
+                h_tree.insert("", "end", tags=(sev,),
+                              values=(r.get('id', ''), r.get('name', ''), sev,
+                                      r.get('victims', 'N/A'), r.get('location', 'N/A'),
+                                      r.get('resources', 'N/A'), r.get('outcome', ''),
+                                      r.get('timestamp', '')))
 
     def reset_history_file(self, tree_widget):
         if messagebox.askyesno("Confirm Reset", "Are you sure you want to permanently delete ALL history records?"):
@@ -387,16 +477,84 @@ class AccidentManager:
             for item in tree_widget.get_children():
                 tree_widget.delete(item)
 
+    # ------------------------------------------------------------------ #
+    #  Helpers to normalise legacy / messy accidents.csv rows             #
+    # ------------------------------------------------------------------ #
+
+    def _is_valid_date(self, val):
+        """Return True if val looks like a YYYY-MM-DD HH:MM timestamp."""
+        try:
+            datetime.strptime(str(val).strip()[:16], "%Y-%m-%d %H:%M")
+            return True
+        except Exception:
+            return False
+
+    def _derive_facilities(self, row):
+        """Build a readable facilities string from need_* boolean columns."""
+        parts = []
+        if str(row.get('need_medical',     '')).strip() in ('1', '1.0', 'True', 'true'): parts.append('Medical')
+        if str(row.get('need_police',      '')).strip() in ('1', '1.0', 'True', 'true'): parts.append('Police')
+        if str(row.get('need_firestation', '')).strip() in ('1', '1.0', 'True', 'true'): parts.append('Fire Station')
+        if str(row.get('need_evac',        '')).strip() in ('1', '1.0', 'True', 'true'): parts.append('Evacuation')
+        return ', '.join(parts) if parts else 'None'
+
+    def _clean_accidents_df(self, df):
+        """
+        Normalise date_added only — does NOT write facilities_needed to the df.
+        facilities_needed is derived on-the-fly in refresh_table for display only.
+        """
+        if 'date_added' not in df.columns:
+            df['date_added'] = ''
+
+        df['date_added'] = df['date_added'].apply(
+            lambda v: str(v).strip() if self._is_valid_date(v) else 'N/A'
+        )
+
+        return df
+
+    # ------------------------------------------------------------------ #
+
     def refresh_table(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
-            
+
         if not os.path.exists(self.acc_file): return
-        
+
         df = pd.read_csv(self.acc_file)
+        df = self._clean_accidents_df(df)
+
+        # --- Sorting ---
+        severity_order = {"Critical": 0, "Moderate": 1, "Minor": 2}
+        sort_key = getattr(self, 'sort_var', None)
+        sort_asc = getattr(self, 'sort_asc_var', None)
+        ascending = sort_asc.get() if sort_asc else False
+
+        sort_col = sort_key.get() if sort_key else "Date Added"
+        if sort_col == "Severity":
+            df['_sev_order'] = df['severity'].map(severity_order).fillna(3)
+            df = df.sort_values('_sev_order', ascending=ascending).drop(columns=['_sev_order'])
+        elif sort_col == "Victims":
+            df = df.sort_values(
+                'num_victims', ascending=ascending,
+                key=lambda s: pd.to_numeric(s, errors='coerce').fillna(0)
+            )
+        elif sort_col == "Name":
+            df = df.sort_values('name', ascending=ascending)
+        elif sort_col == "ID":
+            df = df.sort_values('id', ascending=ascending)
+        else:  # Date Added (default)
+            df = df.sort_values('date_added', ascending=ascending, na_position='last')
+
         for _, row in df.iterrows():
-            self.tree.insert("", "end", values=(row['id'], row['name'], row['severity'], row['num_victims'], row['status']))
-            
+            sev      = str(row.get('severity', '')).strip()
+            date_val = str(row.get('date_added', 'N/A')).strip()
+            # Derive facilities on-the-fly from need_* columns — CSV is never modified
+            fac_val  = self._derive_facilities(row)
+            self.tree.insert("", "end", tags=(sev,),
+                             values=(row['id'], row['name'], sev,
+                                     row['num_victims'], row['status'],
+                                     date_val, fac_val))
+
         self.acc_dropdown.configure(values=list(dict.fromkeys(df['name'].astype(str).tolist())))
 
     def activate_map_picker(self):

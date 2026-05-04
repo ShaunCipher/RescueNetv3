@@ -422,7 +422,6 @@ id,x,y,type
 428,512.54,109.56,accident
 429,1161.56,434.9,accident
 430,488.68,480.22,accident
-431,488.68,480.22,accident
 432,488.68,480.22,accident
 433,388.95,198.79,accident
 434,1406.86,495.7,accident
@@ -447,3 +446,7 @@ id,x,y,type
 453,639.26,85.07,facility
 454,261.39,111.67,facility
 455,618.26,33.29,facility
+456,163.35,330.2,accident
+457,101.26,105.99,accident
+458,611.77,304.33,accident
+459,953.27,435.41,accident

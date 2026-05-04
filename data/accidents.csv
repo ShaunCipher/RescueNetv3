@@ -1,13 +1,12 @@
-id,name,num_victims,severity,status,need_medical,need_police,need_firestation,need_evac,sent_medical,sent_police,sent_firestation,sent_evac
-423,rstgfd,56,Critical,REPORTED,1,0,1,0,Hospital_10,,,
-425,ssss,1,Minor,REPORTED,0,1,0,0,,"Policestation_8, ✅ Policestation_8",,
-426,road accident,11,Minor,REPORTED,1,1,0,0,Hospital_6,,,
-427,asd,12,Minor,REPORTED,1,1,0,0,,,,
-428,asd,12,Critical,REPORTED,1,1,0,0,,,,
-429,road accident,2,Minor,REPORTED,1,1,0,0,,,
-430,car  crash,12,Critical,REPORTED,1,1,0,0
-431,car  crash,12,Critical,REPORTED,1,1,0,0
-432,car  crash,12,Critical,REPORTED,1,1,0,0
-433,qweas,12,Minor,REPORTED,1,1,0,0
-434,123,12,Minor,REPORTED,1,0,0,0
-435,12,123,Minor,REPORTED,1,0,0,0
+id,name,num_victims,severity,status,need_medical,need_police,need_firestation,need_evac,date_and_time,sent_medical,sent_police,sent_firestation,sent_evac
+423,rstgfd,56,Critical,REPORTED,1,0,1,0,Hospital_10,,,,
+425,ssss,1,Minor,REPORTED,0,1,0,0,,"Policestation_8, ✅ Policestation_8",,,
+426,road accident,11,Minor,REPORTED,1,1,0,0,Hospital_6,,,,
+427,asd,12,Minor,REPORTED,1,1,0,0,,,,,
+428,asd,12,Critical,REPORTED,1,1,0,0,,,,,
+429,road accident,2,Minor,REPORTED,1,1,0,0,,,,,
+430,car  crash,12,Critical,REPORTED,1,1,0,0,,,,,
+432,car  crash,12,Critical,REPORTED,1,1,0,0,,,,,
+433,qweas,12,Minor,REPORTED,1,1,0,0,,,,,
+434,123,12,Minor,REPORTED,1,0,0,0,,,,,
+435,12,123,Minor,REPORTED,1,0,0,0,,,,,
