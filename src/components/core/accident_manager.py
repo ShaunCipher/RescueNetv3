@@ -205,14 +205,28 @@ class AccidentManager:
         self._sync_right_panel()
 
     def draw_accidents_on_map(self):
+    # If the right panel's visibility logic is available, delegate to it.
+    # This ensures the toggle switch stays in sync.
+        if self.right_panel_ref is not None and hasattr(self.right_panel_ref, 'vis_logic') and self.right_panel_ref.vis_logic:
+            self.right_panel_ref.refresh_from_csv()
+            return
+
+    # Fallback: draw directly if right panel isn't linked yet
         for plot in self.acc_plots:
             try: plot.remove()
             except: pass
         self.acc_plots = []
-        
+
         if os.path.exists(self.node_file):
             nodes_df = pd.read_csv(self.node_file)
-            accidents = nodes_df[nodes_df['type'] == 'accident']
+            if os.path.exists(self.acc_file):
+                active_ids = pd.read_csv(self.acc_file)['id'].unique()
+            else:
+                active_ids = []
+            accidents = nodes_df[
+                (nodes_df['type'] == 'accident') &
+                (nodes_df['id'].isin(active_ids))
+            ]
             for _, row in accidents.iterrows():
                 p, = self.ax.plot(row['x'], row['y'], 'rx', markersize=12, markeredgewidth=3, zorder=100)
                 self.acc_plots.append(p)

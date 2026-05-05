@@ -40,13 +40,16 @@ class RightPanel(ctk.CTkFrame):
         """Updates the map and binds the click events to the new markers."""
         if self.vis_logic:
             self.vis_logic.update_map()
-            
+        
+        # Respect whatever the toggle switch is currently set to
+            self.vis_logic.toggle_visibility(self.show_acc_var.get())
+        
             acc_artist = getattr(self.vis_logic, 'accident_plot', None)
             if acc_artist:
                 plots = {'accident': acc_artist}
                 self.inspector = AccidentInspector(
-                    self.fig, 
-                    self.ax, 
-                    plots, 
+                    self.fig,
+                    self.ax,
+                    plots,
                     workspace=self.workspace
-                )
+                )   

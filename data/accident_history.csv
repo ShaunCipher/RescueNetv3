@@ -1,0 +1,14 @@
+id,name,severity,victims,location,resources,outcome,timestamp
+423,rstgfd,Critical,56,N/A,"Medical, Fire Station",COMPLETED,2026-05-05 20:59
+425,ssss,Minor,1,"(938.54, 694.69)",Police,COMPLETED,2026-05-05 20:59
+426,road accident,Minor,11,"(684.39, 182.97)","Medical, Police",COMPLETED,2026-05-05 20:59
+427,asd,Minor,12,"(275.62, 164.62)","Medical, Police",COMPLETED,2026-05-05 20:59
+428,asd,Critical,12,"(512.54, 109.56)","Medical, Police",COMPLETED,2026-05-05 20:59
+429,road accident,Minor,2,"(1161.56, 434.9)","Medical, Police",COMPLETED,2026-05-05 20:59
+430,car  crash,Critical,12,"(488.68, 480.22)","Medical, Police",COMPLETED,2026-05-05 20:59
+432,car  crash,Critical,12,"(488.68, 480.22)","Medical, Police",COMPLETED,2026-05-05 20:59
+433,qweas,Minor,12,"(388.95, 198.79)","Medical, Police",COMPLETED,2026-05-05 20:59
+434,123,Minor,12,"(1406.86, 495.7)",Medical,COMPLETED,2026-05-05 20:59
+435,12,Minor,123,"(987.32, 378.78)",Medical,COMPLETED,2026-05-05 20:59
+460,fire,Critical,3,"(382.39, 719.99)","Medical, Police, Fire Station, Evacuation",COMPLETED,2026-05-05 21:12
+460,fire,Minor,12,"(535.89, 568.21)","Medical, Police, Fire Station, Evacuation",COMPLETED,2026-05-05 21:21

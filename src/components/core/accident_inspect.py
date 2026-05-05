@@ -28,9 +28,13 @@ class AccidentInspector:
             df_acc = pd.read_csv(os.path.join('data', 'accidents.csv'))
             df_nodes = pd.read_csv(os.path.join('data', 'nodes.csv'))
             
-            # 2. Replicate the filtering used in Visibility to align indexes
+            # 2. Filter by type='accident' — mirrors exactly how
+            #    AccidentManager.draw_accidents_on_map() builds the plot,
+            #    so iloc[index] aligns with the correct clicked point.
             active_ids = df_acc['id'].unique()
-            active_nodes = df_nodes[df_nodes['id'].isin(active_ids)]
+            active_nodes = df_nodes[
+                (df_nodes['type'] == 'accident') & (df_nodes['id'].isin(active_ids))
+            ].reset_index(drop=True)
             
             # 3. Get the actual node data based on click index
             clicked_node = active_nodes.iloc[index]
