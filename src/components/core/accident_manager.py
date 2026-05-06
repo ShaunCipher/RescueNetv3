@@ -201,11 +201,16 @@ class AccidentManager:
     def search_from_table(self):
         selected = self.tree.selection()
         if selected:
-            acc_name = self.tree.item(selected[0])['values'][1]
-            self.acc_dropdown.set(acc_name)
-            self.on_accident_selected(acc_name)
+            values = self.tree.item(selected[0])['values']
+            acc_id   = int(values[0])
+            acc_name = str(values[1])
+            label = f"{acc_name} (ID:{acc_id})"
+            self.acc_dropdown.set(label)
+            self.on_accident_selected(label)
 
     def refresh_all_data(self):
+        if os.path.exists(self.node_file):
+            self.router.refresh_coords(pd.read_csv(self.node_file))
         if os.path.exists(self.edge_file):
             self.router.edges_df = pd.read_csv(self.edge_file)
             self.router.refresh_graph()
@@ -270,11 +275,21 @@ class AccidentManager:
             acc_data = {
                 "id": new_id, "name": name, "num_victims": self.victims_entry.get() or 0,
                 "severity": self.severity_var.get(), "status": "REPORTED",
-                "need_medical": self.need_medical.get(), "need_police": self.need_police.get(),
-                "need_firestation": self.need_firestation.get(), "need_evac": self.need_evac.get(),
+                "need_medical": int(self.need_medical.get()), "need_police": int(self.need_police.get()),
+                "need_firestation": int(self.need_firestation.get()), "need_evac": int(self.need_evac.get()),
                 "date_added": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                # Keep sent_* columns in sync with the CSV header so pandas reads correctly
+                "sent_medical": 0, "sent_police": 0, "sent_firestation": 0, "sent_evac": 0,
             }
-            pd.DataFrame([acc_data]).to_csv(self.acc_file, mode='a', header=not os.path.exists(self.acc_file), index=False)
+            new_row_df = pd.DataFrame([acc_data])
+            if os.path.exists(self.acc_file):
+                # Align columns to whatever the existing CSV already has
+                existing_cols = pd.read_csv(self.acc_file, nrows=0).columns.tolist()
+                for col in existing_cols:
+                    if col not in new_row_df.columns:
+                        new_row_df[col] = 0
+                new_row_df = new_row_df[existing_cols]
+            new_row_df.to_csv(self.acc_file, mode='a', header=not os.path.exists(self.acc_file), index=False)
             
             # 3. Create Road Connection (Edges)
             road_nodes = nodes_df[nodes_df['type'] == 'road'].copy()
@@ -291,12 +306,100 @@ class AccidentManager:
             ], columns=['from', 'to', 'weight'])
             new_edges.to_csv(self.edge_file, mode='a', header=False, index=False)
             
+            # Reload edges so the new accident node is in the router graph
+            if os.path.exists(self.edge_file):
+                self.router.refresh_coords(pd.read_csv(self.node_file))
+                self.router.edges_df = pd.read_csv(self.edge_file)
+                self.router.refresh_graph()
             self.refresh_all_data()
             self.clear_form()
             messagebox.showinfo("Reported", f"Incident '{name}' has been successfully logged.")
             
         except Exception as e:
             messagebox.showerror("Submission Error", f"Failed to save incident: {e}")
+
+    # ------------------------------------------------------------------ #
+    #  Dynamic Priority Dispatch Algorithm                                #
+    # ------------------------------------------------------------------ #
+
+    def _refresh_scores_in_table(self, table, acc_row, _old_load):
+        """
+        After a new dispatch, re-compute priority scores for all rows in the
+        given Treeview and update the Score column in-place.
+        Already-dispatched rows are left unchanged.
+        """
+        updated_load = self._get_facility_load()
+        severity    = acc_row.get('severity', 'Minor')
+        num_victims = acc_row.get('num_victims', 0)
+        for row_id in table.get_children():
+            vals = table.item(row_id)['values']
+            # Skip rows that have already been dispatched
+            if "DISPATCHED" in str(vals[1]):
+                continue
+            try:
+                fac_id = int(table.item(row_id)['tags'][0])
+                dist   = float(str(vals[1]).replace(' km', '').strip())
+                new_score = round(
+                    self._compute_priority_score(dist, severity, num_victims, fac_id, updated_load),
+                    4
+                )
+                table.item(row_id, values=(vals[0], vals[1], new_score))
+            except Exception:
+                pass
+
+    def _get_facility_load(self):
+        """
+        Return a dict mapping facility_id -> count of active dispatches.
+        Scans self._active_dispatch_keys (format: "acc_id__fac_id") to count
+        how many routes are currently assigned to each facility node.
+        """
+        load = {}
+        for key in getattr(self, '_active_dispatch_keys', set()):
+            parts = key.split('__')
+            if len(parts) == 2:
+                fac_id = parts[1]
+                load[fac_id] = load.get(fac_id, 0) + 1
+        return load
+
+    def _compute_priority_score(self, dist, severity, num_victims, fac_id, facility_load):
+        """
+        Compute a composite dispatch priority score for a candidate facility.
+        A LOWER score means a BETTER / more appropriate dispatch choice.
+
+        Formula:
+            score = (dist / severity_weight) * urgency_damper + load_penalty
+
+        Parameters
+        ----------
+        dist           : float  – shortest-path distance (km) from incident to facility
+        severity       : str    – 'Critical', 'Moderate', or 'Minor'
+        num_victims    : int    – number of victims reported
+        fac_id         : int    – candidate facility node ID
+        facility_load  : dict   – {str(fac_id): active_dispatch_count}
+
+        Score components
+        ----------------
+        severity_weight : Critical=3, Moderate=2, Minor=1
+            Divides the raw distance so that for severe incidents, a
+            facility 3 km away scores the same base as one 1 km away for
+            a minor incident — pushing the algorithm to prefer the closest
+            facility more aggressively when lives are at greater risk.
+
+        urgency_damper : 1 / (1 + log1p(victims))
+            Logarithmically shrinks the distance penalty as victim count
+            rises, rewarding proximity even more for mass-casualty events.
+
+        load_penalty : 2.0 * active_dispatches_to_this_facility
+            Adds a flat cost per already-active route to this facility to
+            spread the dispatch load and avoid overloading a single resource.
+        """
+        severity_weight = {'Critical': 3, 'Moderate': 2, 'Minor': 1}.get(str(severity).strip(), 1)
+        victims = max(0, int(num_victims) if str(num_victims).isdigit() else 0)
+        urgency_damper = 1.0 / (1.0 + np.log1p(victims))
+        load_penalty = 2.0 * facility_load.get(str(fac_id), 0)
+        return (dist / severity_weight) * urgency_damper + load_penalty
+
+    # ------------------------------------------------------------------ #
 
     def create_ranking_table(self, acc_row, facility_file, label):
         # facility_file may be a single filename string OR a list of filenames to concat
@@ -322,35 +425,83 @@ class AccidentManager:
         
         # Ensure graph is current
         self.router.refresh_graph()
+
+        # Snapshot current facility load once for consistent scoring
+        facility_load = self._get_facility_load()
+        severity    = acc_row.get('severity', 'Minor')
+        num_victims = acc_row.get('num_victims', 0)
         
         rankings = []
         for _, fac in f_df.iterrows():
             try:
-                # NetworkX path calculation
-                dist = nx.shortest_path_length(self.router.G, source=int(acc_row['id']), target=int(fac['id']), weight='weight')
-                rankings.append({'name': fac['name'], 'dist': round(dist, 2), 'id': int(fac['id'])})
+                # NetworkX shortest-path distance
+                dist = nx.shortest_path_length(
+                    self.router.G,
+                    source=int(acc_row['id']),
+                    target=int(fac['id']),
+                    weight='weight'
+                )
+                # Dynamic priority score (lower = better)
+                score = self._compute_priority_score(
+                    dist, severity, num_victims, int(fac['id']), facility_load
+                )
+                rankings.append({
+                    'name':  fac['name'],
+                    'dist':  round(dist, 2),
+                    'score': round(score, 4),
+                    'id':    int(fac['id']),
+                })
             except:
                 continue
                 
         if not rankings: return
 
-        sorted_ranks = sorted(rankings, key=lambda x: x['dist'])[:5]
+        # Sort by composite priority score (ascending = best first)
+        sorted_ranks = sorted(rankings, key=lambda x: x['score'])[:5]
         
         try:
             # UI Construction
             frame = ctk.CTkFrame(self.rankings_container)
             frame.pack(fill="x", pady=8, padx=5)
             
-            ctk.CTkLabel(frame, text=f"Top 5 Closest {label}s", font=("Arial", 12, "bold"), text_color="#3498db").pack(pady=2)
+            ctk.CTkLabel(
+                frame,
+                text=f"Top 5 Recommended {label}s",
+                font=("Arial", 12, "bold"),
+                text_color="#3498db"
+            ).pack(pady=2)
+
+            # Show a small legend describing the ranking basis
+            severity_str = str(severity).strip()
+            legend_color = {"Critical": "#e74c3c", "Moderate": "#e67e22", "Minor": "#2ecc71"}.get(severity_str, "#aaaaaa")
+            ctk.CTkLabel(
+                frame,
+                text=f"Ranked by: distance · severity ({severity_str}) · victim count · facility load",
+                font=("Arial", 9, "italic"),
+                text_color=legend_color
+            ).pack()
             
-            table = ttk.Treeview(frame, columns=("Name", "Distance"), show="headings", height=5)
-            table.heading("Name", text="Facility Name")
+            table = ttk.Treeview(frame, columns=("Name", "Distance", "Score"), show="headings", height=5)
+            table.heading("Name",     text="Facility Name")
             table.heading("Distance", text="Distance (km)")
-            table.column("Distance", width=100, anchor="center")
+            table.heading("Score",    text="Priority Score")
+            table.column("Distance", width=95,  anchor="center")
+            table.column("Score",    width=95,  anchor="center")
             table.pack(fill="x", padx=5)
             
-            for item in sorted_ranks:
-                table.insert("", "end", values=(item['name'], f"{item['dist']} km"), tags=(str(item['id']),))
+            for rank, item in enumerate(sorted_ranks, start=1):
+                badge = "⭐ " if rank == 1 else ""
+                # Store both the facility id AND the original distance in tags
+                # so cancelling a dispatch can always restore the distance value.
+                table.insert(
+                    "", "end",
+                    values=(f"{badge}{item['name']}", f"{item['dist']} km", item['score']),
+                    tags=(str(item['id']), f"dist:{item['dist']}")
+                )
+
+            def _clean_name(raw):
+                """Strip dispatch badge and star prefix from a display name."""
+                return str(raw).lstrip("✅ ").lstrip("⭐ ").strip()
 
             def on_dispatch():
                 selected = table.selection()
@@ -358,7 +509,7 @@ class AccidentManager:
 
                 row_id = selected[0]
                 raw_name = table.item(row_id)['values'][0]
-                f_name = str(raw_name).lstrip("✅ ").strip()
+                f_name = _clean_name(raw_name)
                 f_id = int(table.item(row_id)['tags'][0])
                 route_key = f"{int(acc_row['id'])}__{f_id}"
 
@@ -366,7 +517,17 @@ class AccidentManager:
                     int(acc_row['id']), f_id, str(acc_row['name']), f_name, route_key
                 )
                 if success:
-                    table.item(row_id, values=(f"✅ {f_name}", "DISPATCHED"))
+                    # Update distance cell to DISPATCHED; keep score cell intact
+                    cur_score = table.item(row_id)['values'][2]
+                    table.item(row_id, values=(f"✅ {f_name}", "DISPATCHED", cur_score))
+                    # Track so we can clear when the user switches accidents
+                    if not hasattr(self, '_active_dispatch_keys'):
+                        self._active_dispatch_keys = set()
+                    self._active_dispatch_keys.add(route_key)
+                    # Re-score remaining rows with updated load
+                    self._refresh_scores_in_table(
+                        table, acc_row, facility_load
+                    )
 
             def on_facility_double_click(event, tbl=table, acc=acc_row):
                 """Double-clicking a dispatched row cancels and removes its route."""
@@ -376,11 +537,22 @@ class AccidentManager:
                 if "DISPATCHED" not in str(tbl.item(row_id)['values'][1]):
                     return
                 raw_name = tbl.item(row_id)['values'][0]
-                f_name = str(raw_name).lstrip("✅ ").strip()
+                f_name = _clean_name(raw_name)
                 f_id = int(tbl.item(row_id)['tags'][0])
                 route_key = f"{int(acc['id'])}__{f_id}"
                 self.router.clear_route_by_key(route_key)
-                tbl.item(row_id, values=(f_name, "—"))
+
+                # Restore the original distance from the "dist:X.XX" tag
+                orig_dist = "—"
+                for tag in tbl.item(row_id)['tags']:
+                    if str(tag).startswith("dist:"):
+                        orig_dist = f"{str(tag)[5:]} km"
+                        break
+
+                cur_score = tbl.item(row_id)['values'][2]
+                tbl.item(row_id, values=(f_name, orig_dist, cur_score))
+                if hasattr(self, '_active_dispatch_keys'):
+                    self._active_dispatch_keys.discard(route_key)
 
             table.bind("<Double-1>", on_facility_double_click)
 
@@ -389,16 +561,33 @@ class AccidentManager:
             pass
 
     def on_accident_selected(self, selection):
+        # Clear routes drawn for the PREVIOUS accident selection before switching
+        for rk in list(getattr(self, '_active_dispatch_keys', set())):
+            self.router.clear_route_by_key(rk, redraw=False)
+        self._active_dispatch_keys = set()
+        self.fig.canvas.draw_idle()
+
         # Clear existing ranking frames
         for child in self.rankings_container.winfo_children():
             try: child.destroy()
             except: pass
-            
+
         if not os.path.exists(self.acc_file): return
         df = pd.read_csv(self.acc_file)
-        match = df[df['name'] == selection]
+
+        # Parse the accident ID from the dropdown label "Name (ID:123)"
+        # This correctly handles duplicate accident names.
+        import re
+        id_match = re.search(r'\(ID:(\d+)\)$', str(selection).strip())
+        if id_match:
+            acc_id = int(id_match.group(1))
+            match = df[df['id'] == acc_id]
+        else:
+            # Fallback for legacy callers that pass a plain name
+            match = df[df['name'] == selection]
+
         if match.empty: return
-        
+
         acc = match.iloc[0]
         
         # Configuration for resource checks
@@ -411,8 +600,12 @@ class AccidentManager:
             'need_evac':        (['drrm.csv', 'schools.csv', 'churches.csv'],   'Evacuation Facility'),
         }
 
+        def _needs(val):
+            """Return True for any truthy representation pandas might produce."""
+            return str(val).strip().lower() in ('1', '1.0', 'true', 'yes', 'checked')
+
         for col, (file_or_list, label) in resource_map.items():
-            if str(acc.get(col, '')).lower() in ['true', '1', '1.0', 'checked']:
+            if _needs(acc.get(col, '')):
                 self.create_ranking_table(acc, file_or_list, label)
 
     def archive_incident(self, outcome):
@@ -596,7 +789,12 @@ class AccidentManager:
                                      row['num_victims'], row['status'],
                                      date_val, fac_val))
 
-        self.acc_dropdown.configure(values=list(dict.fromkeys(df['name'].astype(str).tolist())))
+        # Format each entry as "Name (ID:123)" so duplicate names remain selectable
+        dropdown_values = [
+            f"{row['name']} (ID:{int(row['id'])})"
+            for _, row in df.iterrows()
+        ]
+        self.acc_dropdown.configure(values=dropdown_values)
 
     def activate_map_picker(self):
         self.cid = self.fig.canvas.mpl_connect('button_press_event', self.on_map_click)

@@ -65,6 +65,13 @@ class RoutingManager:
         for _, row in self.edges_df.iterrows():
             self.G.add_edge(int(row['from']), int(row['to']), weight=float(row['weight']))
 
+    def refresh_coords(self, updated_nodes_df):
+        """Rebuild coords_map from a fresh nodes DataFrame.
+        Must be called whenever nodes.csv changes (e.g. after a new accident is added)
+        so that newly added node IDs are reachable during route drawing."""
+        self.master_nodes = updated_nodes_df
+        self.coords_map = self.master_nodes.set_index('id')[['x', 'y']].T.to_dict('list')
+
     def load_facility_nodes(self):
         file_list = ['hospitals.csv', 'firestations.csv', 'policestations.csv', 
                      'drrm.csv', 'churches.csv', 'schools.csv']
