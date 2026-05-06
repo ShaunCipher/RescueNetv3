@@ -3,6 +3,11 @@ Centralized logging utility for RescueNet.
 Provides unified logging methods for timing, errors, and status messages.
 """
 from time import perf_counter
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+import tkinter as tk
+from tkinter import filedialog
 
 
 class Logger:
@@ -17,10 +22,25 @@ class Logger:
         """
         self._terminal = terminal
         self._start_time = None
+        self.messages = []  # Store messages for history
+        self._statement_counter = 0  # Track iteration count for statements
     
     def set_terminal(self, terminal):
         """Set or update the terminal widget."""
         self._terminal = terminal
+    
+    def _format_message(self, message):
+        """
+        Format a message with iteration count.
+        
+        Args:
+            message: The message to format
+            
+        Returns:
+            Formatted message with iteration count
+        """
+        self._statement_counter += 1
+        return f"[{self._statement_counter}]: {message}"
     
     def log(self, message):
         """
@@ -29,9 +49,11 @@ class Logger:
         Args:
             message: The message to log
         """
+        full_message = self._format_message(message)
         if self._terminal is not None:
-            self._terminal.insert("end", f"\n> {message}")
+            self._terminal.insert("end", f"\n{full_message}")
             self._terminal.see("end")
+        self.messages.append(full_message)
     
     def log_perf(self, message, start_time=None, precision=2):
         """
@@ -45,9 +67,12 @@ class Logger:
         """
         if start_time is not None:
             elapsed = perf_counter() - start_time
-            self.log(f"{message} in {elapsed:.{precision}f} seconds.")
-        else:
-            self.log(message)
+            message = f"{message} in {elapsed:.{precision}f} seconds."
+        full_message = self._format_message(message)
+        if self._terminal is not None:
+            self._terminal.insert("end", f"\n{full_message}")
+            self._terminal.see("end")
+        self.messages.append(full_message)
     
     def log_error(self, message, error=None):
         """
@@ -58,9 +83,14 @@ class Logger:
             error: Optional exception object to include
         """
         if error is not None:
-            self.log(f"ERROR: {message}: {error}")
+            message = f"ERROR: {message}: {error}"
         else:
-            self.log(f"ERROR: {message}")
+            message = f"ERROR: {message}"
+        full_message = self._format_message(message)
+        if self._terminal is not None:
+            self._terminal.insert("end", f"\n{full_message}")
+            self._terminal.see("end")
+        self.messages.append(full_message)
     
     def log_status(self, message):
         """
@@ -69,7 +99,11 @@ class Logger:
         Args:
             message: The status message to log
         """
-        self.log(message)
+        full_message = self._format_message(message)
+        if self._terminal is not None:
+            self._terminal.insert("end", f"\n{full_message}")
+            self._terminal.see("end")
+        self.messages.append(full_message)
     
     def log_warning(self, message):
         """
@@ -78,7 +112,12 @@ class Logger:
         Args:
             message: The warning message to log
         """
-        self.log(f"WARNING: {message}")
+        message = f"WARNING: {message}"
+        full_message = self._format_message(message)
+        if self._terminal is not None:
+            self._terminal.insert("end", f"\n{full_message}")
+            self._terminal.see("end")
+        self.messages.append(full_message)
     
     def log_success(self, message):
         """
@@ -87,7 +126,32 @@ class Logger:
         Args:
             message: The success message to log
         """
-        self.log(f"SUCCESS: {message}")
+        message = f"SUCCESS: {message}"
+        full_message = self._format_message(message)
+        if self._terminal is not None:
+            self._terminal.insert("end", f"\n{full_message}")
+            self._terminal.see("end")
+        self.messages.append(full_message)
+    
+    def export_history_to_pdf(self, filename="terminal_history.pdf"):
+        """
+        Export the logged messages to a PDF file.
+        
+        Args:
+            filename: The name of the PDF file to create
+        """
+        doc = SimpleDocTemplate(filename, pagesize=letter)
+        styles = getSampleStyleSheet()
+        story = []
+        
+        story.append(Paragraph("Terminal Message History", styles['Heading1']))
+        story.append(Spacer(1, 12))
+        
+        for msg in self.messages:
+            story.append(Paragraph(msg, styles['Normal']))
+            story.append(Spacer(1, 6))
+        
+        doc.build(story)
 
 
 # Singleton instance for global access

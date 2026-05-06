@@ -36,6 +36,7 @@ class MainWorkspace(ctk.CTkFrame):
         # Initialize centralized logger
         self.terminal = TerminalPanel(self.v_paned)
         self.logger = Logger(terminal=self.terminal.text_area)
+        self.terminal.set_logger(self.logger)
 
         self.v_paned.add(self.work_area, stretch="always", minsize=400)
         self.v_paned.add(self.terminal, height=180, stretch="never", minsize=150)
