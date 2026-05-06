@@ -818,4 +818,4 @@ class AccidentManager:
         for cb in self.checkboxes:
             cb.deselect()
         self.selected_coords = None
-        self.loc_label.configure(text="Location: None", text_color="white")
+        self.loc_label.configure(text="Location: None", text_color="white")     
