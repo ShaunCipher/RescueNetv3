@@ -1,4 +1,4 @@
-import customtkinter as ctk
+import customtkinter as ctk 
 import tkinter as tk
 from tkinter import ttk, messagebox
 import pandas as pd
@@ -75,6 +75,15 @@ class AccidentManager:
         self.setup_main_panel()
         self.setup_right_panel()
         self.refresh_all_data()
+
+        # Clear all routes from the map when the report window is closed
+        self.report_window.protocol("WM_DELETE_WINDOW", self._on_report_window_close)
+
+    def _on_report_window_close(self):
+        """Clear all drawn routes from the map, then close the report window."""
+        self.router.clear_all_routes()
+        self.fig.canvas.draw_idle()
+        self.report_window.destroy()
 
     def setup_left_panel(self):
         ctk.CTkLabel(self.left_panel, text="🚨 Report Incident", font=("Arial", 20, "bold")).pack(pady=15)
@@ -346,16 +355,34 @@ class AccidentManager:
             def on_dispatch():
                 selected = table.selection()
                 if not selected: return
-                
-                f_name = table.item(selected[0])['values'][0]
-                f_id = int(table.item(selected[0])['tags'][0])
-                
-                try:
-                    self.router.calculate_and_draw(int(acc_row['id']), f_id, str(acc_row['name']), str(f_name))
-                    self.fig.canvas.draw_idle()
-                    table.item(selected[0], values=(f"✅ {f_name}", "DISPATCHED"))
-                except Exception as e:
-                    messagebox.showerror("Routing Error", f"Could not generate path: {e}")
+
+                row_id = selected[0]
+                raw_name = table.item(row_id)['values'][0]
+                f_name = str(raw_name).lstrip("✅ ").strip()
+                f_id = int(table.item(row_id)['tags'][0])
+                route_key = f"{int(acc_row['id'])}__{f_id}"
+
+                success = self.router.calculate_and_draw_keyed(
+                    int(acc_row['id']), f_id, str(acc_row['name']), f_name, route_key
+                )
+                if success:
+                    table.item(row_id, values=(f"✅ {f_name}", "DISPATCHED"))
+
+            def on_facility_double_click(event, tbl=table, acc=acc_row):
+                """Double-clicking a dispatched row cancels and removes its route."""
+                row_id = tbl.identify_row(event.y)
+                if not row_id:
+                    return
+                if "DISPATCHED" not in str(tbl.item(row_id)['values'][1]):
+                    return
+                raw_name = tbl.item(row_id)['values'][0]
+                f_name = str(raw_name).lstrip("✅ ").strip()
+                f_id = int(tbl.item(row_id)['tags'][0])
+                route_key = f"{int(acc['id'])}__{f_id}"
+                self.router.clear_route_by_key(route_key)
+                tbl.item(row_id, values=(f_name, "—"))
+
+            table.bind("<Double-1>", on_facility_double_click)
 
             ctk.CTkButton(frame, text=f"Dispatch {label}", height=28, fg_color="#2980b9", command=on_dispatch).pack(pady=8)
         except:

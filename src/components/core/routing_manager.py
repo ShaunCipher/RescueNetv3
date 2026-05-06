@@ -196,3 +196,55 @@ class RoutingManager:
         ttk.Button(root, text="Clear Map", command=self.clear_all_routes).pack()
 
         return root
+    def calculate_and_draw_keyed(self, start_id, end_id, name_a, name_b, route_key):
+        """
+        Draw a route under a unique route_key without clearing other routes.
+        If a route already exists for this key it is replaced.
+        Returns True on success, False on failure.
+        """
+        try:
+            path = nx.shortest_path(self.G, source=int(start_id), target=int(end_id), weight='weight')
+            dist = nx.shortest_path_length(self.G, source=int(start_id), target=int(end_id), weight='weight')
+
+            # Remove only the previous line for this key if it exists
+            self.clear_route_by_key(route_key, redraw=False)
+
+            path_x = [self.coords_map[node][0] for node in path]
+            path_y = [self.coords_map[node][1] for node in path]
+
+            line, = self.ax.plot(path_x, path_y, color='#f1c40f', linewidth=5, alpha=0.9, zorder=20, picker=5)
+
+            self.active_route_lines[route_key] = line
+            self.route_data[line] = {
+                'from': name_a, 'to': name_b, 'dist': dist,
+                'mid_x': path_x[len(path_x) // 2],
+                'mid_y': path_y[len(path_y) // 2],
+            }
+
+            self.fig.canvas.draw_idle()
+            return True
+
+        except (nx.NetworkXNoPath, nx.NodeNotFound):
+            messagebox.showerror("Error", "No road path found.")
+            return False
+        except Exception:
+            return False
+
+    def clear_route_by_key(self, route_key, redraw=True):
+        """Remove only the route identified by route_key, leaving all others intact."""
+        line = self.active_route_lines.pop(route_key, None)
+        if line is not None:
+            popup_key = f"{route_key}_popup"
+            if popup_key in self.active_popups:
+                self.active_popups[popup_key].remove()
+                if popup_key in self.draggable_instances:
+                    self.draggable_instances[popup_key].disconnect()
+                    del self.draggable_instances[popup_key]
+                del self.active_popups[popup_key]
+            self.route_data.pop(line, None)
+            try:
+                line.remove()
+            except Exception:
+                pass
+            if redraw:
+                self.fig.canvas.draw_idle()

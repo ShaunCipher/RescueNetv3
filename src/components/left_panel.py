@@ -1,7 +1,13 @@
 import customtkinter as ctk
 import os
 import csv
-from src.components.core.merge_sort import merge_sort, sort_facilities_by_distance
+from src.components.core.merge_sort import (
+    merge_sort,
+    sort_facilities_by_distance,
+    get_top_n_per_category,
+    get_accident_needed_facilities,
+    highlight_facilities_on_map,
+)
 from .network_editor import NetworkEditor
 from src.components.core.binary_search import find_by_distance  # New Import
 
@@ -18,6 +24,11 @@ class LeftPanel(ctk.CTkFrame):
         
         self.node_map = self.load_nodes("nodes.csv")
         self.accident_data = self.load_accidents("accidents.csv")
+
+        # Tracks map highlight handles so they can be cleared on next selection
+        self._facility_plots = []
+        # Tracks dispatched route plot handles keyed by (acc_id, facility_id)
+        self._dispatched_routes = {}
 
         # --- 1. CLOSE BUTTON ---
         self.close_btn = ctk.CTkButton(
@@ -234,6 +245,9 @@ class LeftPanel(ctk.CTkFrame):
         self._update_filter_dropdown(facilities_by_category)
         self._update_results_display()
 
+        # ── MAP: show top-1 closest facility per needed category on accident click ──
+        self._highlight_map(n=1)
+
     def _flatten_and_sort_facilities(self, facilities_by_category):
         flattened = []
         for category, facilities in facilities_by_category.items():
@@ -276,23 +290,125 @@ class LeftPanel(ctk.CTkFrame):
         if filter_mode == 'All':
             for category in sorted(self.current_categorized_facilities.keys()):
                 sorted_facilities = self.current_categorized_facilities[category]
-                header = ctk.CTkLabel(self.results_scroll, text=f"━━ {category.upper()} ━━", text_color="#d35400", font=("Arial", 12, "bold"), anchor="w")
-                header.pack(fill="x", padx=10, pady=(15, 5))
+                ctk.CTkLabel(self.results_scroll, text=f"━━ {category.upper()} ━━", text_color="#d35400", font=("Arial", 12, "bold"), anchor="w").pack(fill="x", padx=10, pady=(15, 5))
                 for i, facility in enumerate(sorted_facilities):
-                    info = f"  {i+1}. {facility.get('name', 'Unknown')} — {facility.get('distance', 0)} km"
-                    ctk.CTkLabel(self.results_scroll, text=info, anchor="w").pack(fill="x", padx=10, pady=2)
+                    self._make_facility_button(self.results_scroll, i, facility, acc_id, accident_name)
         elif filter_mode == 'Uncategorized':
             for i, facility in enumerate(self.current_flattened_facilities):
-                info = f"{i+1}. {facility.get('name', 'Unknown')} — {facility.get('distance', 0)} km"
-                ctk.CTkLabel(self.results_scroll, text=info, anchor="w").pack(fill="x", padx=10, pady=2)
+                self._make_facility_button(self.results_scroll, i, facility, acc_id, accident_name)
         else:
             if filter_mode in self.current_categorized_facilities:
                 sorted_facilities = self.current_categorized_facilities[filter_mode]
-                header = ctk.CTkLabel(self.results_scroll, text=f"━━ {filter_mode.upper()} ━━", text_color="#d35400", font=("Arial", 12, "bold"), anchor="w")
-                header.pack(fill="x", padx=10, pady=(15, 5))
+                ctk.CTkLabel(self.results_scroll, text=f"━━ {filter_mode.upper()} ━━", text_color="#d35400", font=("Arial", 12, "bold"), anchor="w").pack(fill="x", padx=10, pady=(15, 5))
                 for i, facility in enumerate(sorted_facilities):
-                    info = f"  {i+1}. {facility.get('name', '')} — {facility.get('distance', 0)} km"
-                    ctk.CTkLabel(self.results_scroll, text=info, anchor="w").pack(fill="x", padx=10, pady=2)
+                    self._make_facility_button(self.results_scroll, i, facility, acc_id, accident_name)
+
+    def _make_facility_button(self, parent, index, facility, acc_id, accident_name):
+        """Render a single facility as a clickable button that toggles route on/off."""
+        f_name = facility.get('name', 'Unknown')
+        f_id   = facility.get('id')
+        dist   = facility.get('distance', 0)
+
+        row = ctk.CTkFrame(parent, fg_color="transparent")
+        row.pack(fill="x", padx=10, pady=2)
+
+        route_key = (str(acc_id), str(f_id))
+
+        # State dict shared between the button and its command closure
+        state = {'dispatched': False}
+
+        def toggle(fid=f_id, fname=f_name, aid=acc_id, aname=accident_name,
+                   r=row, s=state, rk=route_key):
+            if s['dispatched']:
+                self._cancel_dispatch(aid, aname, fid, fname, r, s, rk, index, dist)
+            else:
+                self._route_to_facility(aid, aname, fid, fname, r, s, rk, index, dist)
+
+        btn = ctk.CTkButton(
+            row,
+            text=f"  {index + 1}. {f_name} — {dist} km",
+            anchor="w",
+            height=30,
+            fg_color="#2d2d2d",
+            hover_color="#3a3a3a",
+            border_width=1,
+            border_color="#444444",
+            font=("Arial", 11),
+            command=toggle
+        )
+        btn.pack(side="left", fill="x", expand=True)
+
+        # Keep a reference to the button so _route_to_facility can update it
+        row._btn   = btn
+        row._state = state
+
+    def _route_to_facility(self, acc_id, acc_name, facility_id, facility_name,
+                            row_frame, state, route_key, index, dist):
+        """Draw a route line and mark button as DISPATCHED (first click)."""
+        if not self.workspace:
+            return
+
+        router = None
+        if hasattr(self.workspace, 'accident_manager') and hasattr(self.workspace.accident_manager, 'router'):
+            router = self.workspace.accident_manager.router
+        elif hasattr(self.workspace, 'routing_engine'):
+            router = self.workspace.routing_engine
+
+        if router is None:
+            from tkinter import messagebox
+            messagebox.showerror("Routing Error", "No router available in workspace.")
+            return
+
+        router.refresh_graph()
+
+        # Use keyed drawing so this route gets its own slot and does NOT
+        # wipe other active routes (unlike the original calculate_and_draw)
+        success = router.calculate_and_draw_keyed(
+            int(acc_id),
+            int(facility_id),
+            str(acc_name),
+            str(facility_name),
+            route_key=route_key,
+        )
+
+        if not success:
+            return
+
+        # Update button → DISPATCHED style (click again to cancel)
+        state['dispatched'] = True
+        btn = getattr(row_frame, '_btn', None)
+        if btn:
+            btn.configure(
+                text=f"  ✅ {facility_name} — DISPATCHED  (click to cancel)",
+                fg_color="#1a4a1a",
+                hover_color="#e74c3c",
+                border_color="#2ecc71",
+                text_color="#2ecc71",
+            )
+
+    def _cancel_dispatch(self, acc_id, acc_name, facility_id, facility_name,
+                          row_frame, state, route_key, index, dist):
+        """Remove the drawn route line and restore button to default (second click)."""
+        router = None
+        if hasattr(self.workspace, 'accident_manager') and hasattr(self.workspace.accident_manager, 'router'):
+            router = self.workspace.accident_manager.router
+        elif hasattr(self.workspace, 'routing_engine'):
+            router = self.workspace.routing_engine
+
+        if router:
+            router.clear_route_by_key(route_key)
+
+        # Restore button to original style
+        state['dispatched'] = False
+        btn = getattr(row_frame, '_btn', None)
+        if btn:
+            btn.configure(
+                text=f"  {index + 1}. {facility_name} — {dist} km",
+                fg_color="#2d2d2d",
+                hover_color="#3a3a3a",
+                border_color="#444444",
+                text_color=("gray10", "gray90"),
+            )
 
     def set_accident(self, acc_id, popup):
         if self.workspace:
@@ -316,7 +432,15 @@ class LeftPanel(ctk.CTkFrame):
         popup.lift()
         
         self.sorted_view_window = popup
-        
+
+        def on_close():
+            """Clear map highlights and drawn routes when the window is closed."""
+            self._clear_map_highlights()
+            self._clear_routes()
+            popup.destroy()
+
+        popup.protocol("WM_DELETE_WINDOW", on_close)
+
         ctk.CTkLabel(popup, text="Sort Facilities (Merge Sort)", font=("Arial", 18, "bold")).pack(pady=10)
 
         self.dropdown_map = {}
@@ -361,6 +485,95 @@ class LeftPanel(ctk.CTkFrame):
         
         if hasattr(self, 'current_categorized_facilities'):
             self._update_results_display()
+
+        # ── MAP: top-1 for All views, top-5 scoped to the selected category ──
+        if hasattr(self, 'current_categorized_facilities'):
+            if self.current_filter_mode in ("All", "Uncategorized"):
+                # Back to overview — show top-1 per every needed category
+                self._highlight_map(n=1, category_filter=None)
+            else:
+                # A specific category was chosen — show top-5 of that category only
+                self._highlight_map(n=5, category_filter=self.current_filter_mode)
+
+    def _clear_map_highlights(self):
+        """Remove all facility markers and annotations drawn by _highlight_map."""
+        ax  = getattr(self.workspace, 'ax',  None)
+        fig = getattr(self.workspace, 'fig', None)
+        for handle in self._facility_plots:
+            try:
+                handle.remove()
+            except Exception:
+                pass
+        self._facility_plots = []
+        if fig:
+            fig.canvas.draw_idle()
+
+
+    def _clear_routes(self):
+        """Remove all route lines drawn by _route_to_facility via the router."""
+        router = None
+        if hasattr(self.workspace, 'accident_manager') and hasattr(self.workspace.accident_manager, 'router'):
+            router = self.workspace.accident_manager.router
+        elif hasattr(self.workspace, 'routing_engine'):
+            router = self.workspace.routing_engine
+
+        if router:
+            # Remove only the routes we dispatched from this panel
+            for route_key in list(self._dispatched_routes.keys()):
+                router.clear_route_by_key(route_key, redraw=False)
+            fig = getattr(self.workspace, 'fig', None)
+            if fig:
+                fig.canvas.draw_idle()
+
+        self._dispatched_routes = {}
+
+    def _highlight_map(self, n=1, category_filter=None):
+        """
+        Draw the top-N closest facilities on the map.
+
+        n=1, category_filter=None  → accident click: top-1 per every needed category
+        n=1, category_filter=None  → All/Uncategorized filter: same overview
+        n=5, category_filter='Church' → specific filter: top-5 of that category only
+        """
+        if not self.workspace:
+            return
+        ax  = getattr(self.workspace, 'ax',  None)
+        fig = getattr(self.workspace, 'fig', None)
+        if ax is None or fig is None:
+            return
+
+        acc_id = getattr(self, 'current_accident_id', None)
+        if acc_id is None:
+            return
+
+        acc_file = os.path.join(self.data_dir, 'accidents.csv')
+
+        # Get which facilities this accident actually needs + summary text
+        acc_info = get_accident_needed_facilities(
+            accident_id=acc_id,
+            acc_file=acc_file
+        )
+
+        # Scope to one category when a specific filter is selected
+        if category_filter and category_filter in self.current_categorized_facilities:
+            scoped = {category_filter: self.current_categorized_facilities[category_filter]}
+        else:
+            scoped = self.current_categorized_facilities
+
+        # Slice to top-N (optionally filtered to needed categories only)
+        top_n = get_top_n_per_category(
+            scoped,
+            n=n,
+            accident_id=acc_id if category_filter is None else None,  # skip need-filter when user picked a specific category
+            acc_file=acc_file
+        )
+
+        # Draw on map, clearing previous highlights first
+        self._facility_plots = highlight_facilities_on_map(
+            ax, fig, top_n, self.node_map,
+            existing_plots=self._facility_plots,
+            accident_info=acc_info
+        )
 
     def open_routing(self):
         if self.workspace and hasattr(self.workspace, 'routing_engine'):
