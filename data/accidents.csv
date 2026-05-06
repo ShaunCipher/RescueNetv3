@@ -1,7 +1,7 @@
 id,name,num_victims,severity,status,need_medical,need_police,need_firestation,need_evac,date_added,sent_medical,sent_police,sent_firestation,sent_evac
-460,fire,15,Minor,REPORTED,1,1,1,1,2026-05-05 21:22
-461,car accident,1,Minor,REPORTED,1,1,0,0,2026-05-06 22:04
-462,robbery,1,Critical,REPORTED,1,1,0,0,2026-05-06 22:15
+460,fire,15,Minor,REPORTED,1,1,1,1,2026-05-05 21:22,0,0,0,0
+461,car accident,1,Minor,REPORTED,1,1,0,0,2026-05-06 22:04,0,0,0,0
+462,robbery,1,Critical,REPORTED,1,1,0,0,2026-05-06 22:15,0,0,0,0
 463,Flood,13,Critical,REPORTED,1,1,1,1,2026-05-06 22:22,0,0,0,0
 464,street fight,5,Critical,REPORTED,1,1,0,0,2026-05-06 22:33,0,0,0,0
 465,fire,7,Critical,REPORTED,1,1,1,1,2026-05-06 22:34,0,0,0,0
