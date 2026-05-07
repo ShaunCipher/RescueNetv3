@@ -373,6 +373,7 @@ class LeftPanel(ctk.CTkFrame):
 
         if not success:
             return
+        self._dispatched_routes[route_key] = True
 
         # Update button → DISPATCHED style (click again to cancel)
         state['dispatched'] = True
@@ -397,6 +398,7 @@ class LeftPanel(ctk.CTkFrame):
 
         if router:
             router.clear_route_by_key(route_key)
+        self._dispatched_routes.pop(route_key, None)
 
         # Restore button to original style
         state['dispatched'] = False
@@ -601,6 +603,12 @@ class LeftPanel(ctk.CTkFrame):
         popup.title("Binary Search: Find by Distance")
         popup.geometry("450x500")
         popup.attributes("-topmost", True)
+
+        def on_close():
+            self._clear_routes()
+            popup.destroy()
+
+        popup.protocol("WM_DELETE_WINDOW", on_close)
         
         ctk.CTkLabel(popup, text="Binary Search Facility", font=("Arial", 18, "bold")).pack(pady=10)
 
@@ -617,15 +625,59 @@ class LeftPanel(ctk.CTkFrame):
 
         # 3. Results Area
         res_frame = ctk.CTkScrollableFrame(popup, width=400, height=200)
+
+        def make_search_result_button(parent, index, facility, acc_id, accident_name):
+            f_name = facility.get('name', 'Unknown')
+            f_id = facility.get('id')
+            dist = facility.get('distance', 0)
+            category = facility.get('category', 'N/A')
+            route_key = ("target_search", str(acc_id), str(f_id))
+            state = {'dispatched': False}
+
+            row = ctk.CTkFrame(parent, fg_color="transparent")
+            row.pack(fill="x", padx=10, pady=3)
+
+            def toggle():
+                if state['dispatched']:
+                    self._cancel_dispatch(
+                        acc_id, accident_name, f_id, f_name,
+                        row, state, route_key, index, dist
+                    )
+                else:
+                    self._route_to_facility(
+                        acc_id, accident_name, f_id, f_name,
+                        row, state, route_key, index, dist
+                    )
+
+            btn = ctk.CTkButton(
+                row,
+                text=f"  {index + 1}. {f_name} - {category} - {dist} km",
+                anchor="w",
+                height=34,
+                fg_color="#2d2d2d",
+                hover_color="#3a3a3a",
+                border_width=1,
+                border_color="#444444",
+                font=("Arial", 10),
+                command=toggle
+            )
+            btn.pack(side="left", fill="x", expand=True)
+            row._btn = btn
+            row._state = state
         
         def run_search():
             for widget in res_frame.winfo_children(): widget.destroy()
+            self._clear_routes()
             try:
                 selection = acc_dropdown.get()
                 if not selection: return
                 acc_id = selection.split(" - ")[0]
+                accident_name = self.accident_data.get(str(acc_id), {}).get('name', selection)
                 target_dist = float(dist_entry.get())
                 acc_coords = self.node_map.get(str(acc_id))
+                if not acc_coords:
+                    ctk.CTkLabel(res_frame, text="Error: Accident coordinates not found", text_color="red").pack()
+                    return
                 
                 match, all_sorted = find_by_distance(
                     self.workspace.master_registry,
@@ -637,13 +689,13 @@ class LeftPanel(ctk.CTkFrame):
 
                 if match:
                     ctk.CTkLabel(res_frame, text="MATCH FOUND!", text_color="#28a745", font=("Arial", 12, "bold")).pack()
-                    info = f"Name: {match.get('name')}\nCategory: {match.get('category', 'N/A')}\nDistance: {match.get('distance')} km"
-                    ctk.CTkLabel(res_frame, text=info, justify="left").pack(pady=10)
+                    ctk.CTkLabel(res_frame, text="Click the facility to show its route.", font=("Arial", 10, "italic")).pack(pady=(2, 8))
+                    make_search_result_button(res_frame, 0, match, acc_id, accident_name)
                 else:
                     ctk.CTkLabel(res_frame, text="No exact match found.", text_color="#e74c3c").pack()
-                    ctk.CTkLabel(res_frame, text="Closest facilities:", font=("Arial", 11, "italic")).pack(pady=5)
-                    for f in all_sorted[:5]:
-                        ctk.CTkLabel(res_frame, text=f"{f.get('name')} ({f.get('distance')} km)", font=("Arial", 10)).pack()
+                    ctk.CTkLabel(res_frame, text="Closest facilities (click to show route):", font=("Arial", 11, "italic")).pack(pady=5)
+                    for i, f in enumerate(all_sorted[:5]):
+                        make_search_result_button(res_frame, i, f, acc_id, accident_name)
             except ValueError:
                 ctk.CTkLabel(res_frame, text="Error: Please enter a valid number", text_color="red").pack()
 
